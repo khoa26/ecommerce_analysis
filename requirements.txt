@@ -1,0 +1,13 @@
+# Database
+psycopg2-binary>=2.9.9
+pandas>=2.0.0
+
+# Web Scraping
+selenium>=4.15.0
+beautifulsoup4>=4.12.0
+
+# Environment & Configuration
+python-dotenv>=1.0.0
+
+# Supabase
+supabase>=2.0.0

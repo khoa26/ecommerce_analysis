@@ -23,10 +23,15 @@ CREATE TABLE seller (
 CREATE TABLE product (
     product_id        VARCHAR(50) PRIMARY KEY,
     product_name      TEXT NOT NULL,
-    brand             TEXT,
     short_description TEXT,
     category_id       VARCHAR(50),
     seller_id         VARCHAR(50),
+    product_url       TEXT,
+    image_url         TEXT,
+    author_brand      TEXT,
+    sold_quantity     INT,
+    review_score      FLOAT,
+    review_count      INT,
 
     CONSTRAINT fk_product_category
         FOREIGN KEY (category_id)
@@ -40,9 +45,9 @@ CREATE TABLE product (
 CREATE TABLE price_offer (
     offer_id         VARCHAR(50) PRIMARY KEY,
     product_id       VARCHAR(50) NOT NULL,
-    current_price    INT,
-    original_price   INT,
-    discount_percent INT,
+    current_price    FLOAT,
+    original_price   FLOAT,
+    discount_percent FLOAT,
     coupon_available TEXT,
     extra_services   TEXT,
     crawl_time       TIMESTAMP,
@@ -57,7 +62,8 @@ CREATE TABLE reviewer (
     reviewer_id            VARCHAR(50) PRIMARY KEY,
     reviewer_name          TEXT,
     reviewer_seniority     TEXT,
-    reviewer_contributions INT
+    reviewer_contributions INT,
+    reviewer_received_thanks INT
 );
 
 CREATE TABLE review (
@@ -67,7 +73,6 @@ CREATE TABLE review (
     rating_score    INT CHECK (rating_score BETWEEN 1 AND 5),
     review_content  TEXT,
     thank_count     INT,
-    product_variant TEXT,
     review_time     TEXT,
     usage_duration  TEXT,
 
@@ -81,5 +86,3 @@ CREATE TABLE review (
         REFERENCES reviewer(reviewer_id)
         ON DELETE CASCADE
 );
-
-ALTER USER postgres WITH PASSWORD '75779905';
