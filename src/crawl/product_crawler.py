@@ -3,7 +3,7 @@ import re
 import time
 import uuid
 from datetime import datetime, timezone, timedelta
-
+import hashlib
 from bs4 import BeautifulSoup
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -88,7 +88,9 @@ def parse_review(html_content, product_id):
     for rev in review_items:
         rev_name = rev.find('div', class_='review-comment__user-name').text.strip()
         rev_date_join = rev.find('div', class_='review-comment__user-date').text.strip()
-        rev_id = str(hash(rev_name))[-10:] 
+
+        combined_info = f"{rev_name}_{rev_date_join}"
+        rev_id = hashlib.md5(combined_info.encode('utf-8')).hexdigest()[-10:]
         
         info_chunks = soup.find_all('div', class_='review-comment__user-info')
     
@@ -370,6 +372,15 @@ def main():
     create_all_tables(cur)
 
     driver = setup_chrome_driver()
+
+    if os.path.exists("finished_categories.txt"):
+        with open("finished_categories.txt", "r", encoding="utf-8") as f:
+            finished_categories = set([line.strip() for line in f.readlines() if line.strip()])
+    else:
+        finished_categories = set()
+        with open("finished_categories.txt", "w", encoding="utf-8") as f:
+            f.write("")
+
     try:
         cur.execute(
             """
@@ -399,7 +410,9 @@ def main():
         print(f"Found {len(rows)} categories to crawl.")
         for row in rows:
             cat_id, url = row
-            print(f"Category URL: {url}")
+            if url in finished_categories:
+                continue
+
             driver.get(url)
             while click_see_more(driver):
                 pass
@@ -486,9 +499,11 @@ def main():
                         (review['review_id'], review['product_id'], review['reviewer_id'], review['rating_score'], 
                         review['review_content'], review['thank_count'], review['review_time'], review['usage_duration'])
                     )
-
                 conn.commit()
 
+            finished_categories.add(url)
+            with open("finished_categories.txt", "w", encoding="utf-8") as f:
+                f.write("\n".join(list(finished_categories)) + "\n")
     finally:
         driver.quit()
         cur.close()
