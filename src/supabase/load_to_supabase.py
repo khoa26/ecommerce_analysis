@@ -1,27 +1,46 @@
 import os
+import time
 import warnings
 from pathlib import Path
-from typing import List, Dict, Any
-import time
+from typing import Any, Dict, List
 
 import pandas as pd
 import psycopg2
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
-env_path = Path(__file__).resolve().parent.parent.parent / '.env'
+env_path = Path(__file__).resolve().parent.parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
-DB_USER = os.getenv('DB_USER')
-DB_PASSWORD = os.getenv('PASSWORD')
-DB_HOST = os.getenv('HOST')
-DB_DATABASE = os.getenv('DATABASE')
-DB_PORT = os.getenv('PORT')
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("PASSWORD")
+DB_HOST = os.getenv("HOST")
+DB_DATABASE = os.getenv("DATABASE")
+DB_PORT = os.getenv("PORT")
 
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-BATCH_SIZE = int(os.getenv('UPLOAD_BATCH_SIZE', '1000'))
+BATCH_SIZE = int(os.getenv("UPLOAD_BATCH_SIZE", "1000"))
+
+# Tables in schema.sql; order respects FK (parent tables first).
+TABLE_ORDER = [
+    "category",   # category_id, category_name, category_url, parent_category_id, level, category_path, is_scanned
+    "seller",     # seller_id, seller_name, seller_rating, total_reviews
+    "reviewer",   # reviewer_id, reviewer_name, reviewer_seniority, reviewer_contributions, reviewer_received_thanks
+    "product",    # product_id, product_name, short_description, category_id, seller_id, product_url, image_url, author_brand, sold_quantity, review_score, review_count
+    "price_offer",# offer_id, product_id, current_price, original_price, discount_percent, coupon_available, extra_services, crawl_time
+    "review",     # review_id, product_id, reviewer_id, rating_score, review_content, thank_count, review_time, usage_duration
+]
+
+PRIMARY_KEYS = {
+    "category": "category_id",
+    "seller": "seller_id",
+    "reviewer": "reviewer_id",
+    "product": "product_id",
+    "price_offer": "offer_id",
+    "review": "review_id",
+}
 
 def get_postgres_connection():
     return psycopg2.connect(
@@ -29,7 +48,7 @@ def get_postgres_connection():
         database=DB_DATABASE,
         password=DB_PASSWORD,
         host=DB_HOST,
-        port=DB_PORT
+        port=DB_PORT,
     )
 
 
@@ -42,11 +61,10 @@ def get_supabase_client() -> Client:
 
 
 def read_table_from_postgres(conn, table_name: str) -> pd.DataFrame:
-    # Bảng category tự tham chiếu: cần chèn theo level để parent có trước child
     if table_name == "category":
         query = "SELECT * FROM category ORDER BY level ASC NULLS FIRST"
     else:
-        query = f"SELECT * FROM {table_name}"
+        query = f'SELECT * FROM "{table_name}"'
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         return pd.read_sql_query(query, conn)
@@ -54,7 +72,19 @@ def read_table_from_postgres(conn, table_name: str) -> pd.DataFrame:
 
 def convert_dataframe_to_dict(df: pd.DataFrame) -> List[Dict[str, Any]]:
     df = df.where(pd.notnull(df), None)
-    return df.to_dict('records')
+    return df.to_dict("records")
+
+
+def _clear_supabase_table(supabase: Client, table_name: str) -> None:
+    pk = PRIMARY_KEYS.get(table_name)
+    if not pk:
+        print(f"    Warning: unknown table '{table_name}', skip clear")
+        return
+    print(f"  Clearing existing data from '{table_name}'...")
+    try:
+        supabase.table(table_name).delete().neq(pk, "").execute()
+    except Exception as e:
+        print(f"    Warning: could not clear table: {e}")
 
 
 def upload_table_batch(
@@ -67,15 +97,7 @@ def upload_table_batch(
     total_records = len(data)
     success_count = 0
     error_count = 0
-    primary_keys = {
-        'category': 'category_id',
-        'seller': 'seller_id',
-        'reviewer': 'reviewer_id',
-        'product': 'product_id',
-        'price_offer': 'offer_id',
-        'review': 'review_id'
-    }
-    pk_column = primary_keys.get(table_name, 'id')
+    pk_column = PRIMARY_KEYS.get(table_name, "id")
     print(f"  Uploading {total_records} records to '{table_name}'...")
     
     for i in range(0, total_records, batch_size):
@@ -127,13 +149,6 @@ def upload_table(
         return True
     
     try:
-        if clear_existing:
-            print(f"  Clearing existing data from '{table_name}'...")
-            try:
-                supabase.table(table_name).delete().neq('id', '').execute()
-            except Exception as e:
-                print(f"    Warning: Could not clear table: {e}")
-        
         success_count, error_count = upload_table_batch(supabase, table_name, data)
         
         print(
@@ -150,24 +165,17 @@ def upload_table(
 
 def upload_all_tables(
     clear_existing: bool = False,
-    tables_order: List[str] = None
+    tables_order: List[str] = None,
 ) -> Dict[str, bool]:
     if tables_order is None:
-        tables_order = [
-            'category',
-            'seller',
-            'reviewer',
-            'product',
-            'price_offer',
-            'review'
-        ]
-    
+        tables_order = TABLE_ORDER
+
     results = {}
-    
+
     print("=" * 70)
     print("Starting data migration from PostgreSQL to Supabase")
     print("=" * 70)
-    
+
     print("\n1. Connecting to databases...")
     try:
         pg_conn = get_postgres_connection()
@@ -183,9 +191,13 @@ def upload_all_tables(
         print(f"  ✗ Failed to connect to Supabase: {e}")
         pg_conn.close()
         return results
-    
-    print(f"\n2. Uploading {len(tables_order)} tables...")
-    
+
+    if clear_existing:
+        print("\n2. Clearing existing Supabase data (reverse FK order)...")
+        for table_name in reversed(tables_order):
+            _clear_supabase_table(supabase, table_name)
+
+    print(f"\n3. Uploading {len(tables_order)} tables...")
     for table_name in tables_order:
         print(f"\nProcessing table: {table_name}")
         
@@ -200,12 +212,7 @@ def upload_all_tables(
             
             data = convert_dataframe_to_dict(df)
             
-            success = upload_table(
-                supabase,
-                table_name,
-                data,
-                clear_existing=clear_existing and table_name == tables_order[0]
-            )
+            success = upload_table(supabase, table_name, data)
             
             results[table_name] = success
             

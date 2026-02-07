@@ -10,8 +10,6 @@ from selenium.webdriver.chrome.service import Service
 _env_path = Path(__file__).resolve().parent.parent.parent / ".env"
 load_dotenv(dotenv_path=_env_path)
 
-TIKI_URL = "https://tiki.vn/"
-
 DB_USER = os.getenv("DB_USER")
 PASSWORD = os.getenv("PASSWORD")
 HOST = os.getenv("HOST")
@@ -88,14 +86,14 @@ def create_all_tables(cur):
             parent_category_id  VARCHAR(50),
             level               INT,
             category_path       TEXT,
-            is_scanned BOOLEAN DEFAULT FALSE,
+            is_scanned          BOOLEAN DEFAULT FALSE,
             CONSTRAINT fk_parent_category
                 FOREIGN KEY (parent_category_id)
                 REFERENCES category(category_id)
                 ON DELETE SET NULL
         );
         """,
-        
+
         """
         CREATE TABLE IF NOT EXISTS seller (
             seller_id     VARCHAR(50) PRIMARY KEY,
@@ -104,24 +102,20 @@ def create_all_tables(cur):
             total_reviews INT
         );
         """,
-        
-        """
-        CREATE TABLE IF NOT EXISTS reviewer (
-            reviewer_id            VARCHAR(50) PRIMARY KEY,
-            reviewer_name          TEXT,
-            reviewer_seniority     TEXT,
-            reviewer_contributions INT
-        );
-        """,
 
         """
         CREATE TABLE IF NOT EXISTS product (
             product_id        VARCHAR(50) PRIMARY KEY,
             product_name      TEXT NOT NULL,
-            brand             TEXT,
             short_description TEXT,
             category_id       VARCHAR(50),
             seller_id         VARCHAR(50),
+            product_url       TEXT,
+            image_url         TEXT,
+            author_brand      TEXT,
+            sold_quantity     INT,
+            review_score      FLOAT,
+            review_count      INT,
             CONSTRAINT fk_product_category
                 FOREIGN KEY (category_id)
                 REFERENCES category(category_id),
@@ -135,16 +129,26 @@ def create_all_tables(cur):
         CREATE TABLE IF NOT EXISTS price_offer (
             offer_id         VARCHAR(50) PRIMARY KEY,
             product_id       VARCHAR(50) NOT NULL,
-            current_price    INT,
-            original_price   INT,
-            discount_percent INT,
+            current_price    FLOAT,
+            original_price   FLOAT,
+            discount_percent FLOAT,
             coupon_available TEXT,
             extra_services   TEXT,
-            crawl_time       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            crawl_time       TIMESTAMP,
             CONSTRAINT fk_offer_product
                 FOREIGN KEY (product_id)
                 REFERENCES product(product_id)
                 ON DELETE CASCADE
+        );
+        """,
+
+        """
+        CREATE TABLE IF NOT EXISTS reviewer (
+            reviewer_id              VARCHAR(50) PRIMARY KEY,
+            reviewer_name            TEXT,
+            reviewer_seniority       TEXT,
+            reviewer_contributions   INT,
+            reviewer_received_thanks INT
         );
         """,
 
@@ -156,7 +160,6 @@ def create_all_tables(cur):
             rating_score    INT CHECK (rating_score BETWEEN 1 AND 5),
             review_content  TEXT,
             thank_count     INT,
-            product_variant TEXT,
             review_time     TEXT,
             usage_duration  TEXT,
             CONSTRAINT fk_review_product
@@ -174,6 +177,6 @@ def create_all_tables(cur):
     try:
         for query in queries:
             cur.execute(query)
-        print("Success! All database structures have been created successfully.")
+        print("Success! All database structures have been created/updated successfully.")
     except Exception as err:
         print(f"Error creating tables: {err}")
