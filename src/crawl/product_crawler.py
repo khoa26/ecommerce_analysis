@@ -68,7 +68,6 @@ def parse_tiki_products(html_content, category_id):
                 'product_id': product_id,
                 'product_name': product_name,
                 'category_id': category_id,
-                'seller_id': "",
                 'product_url': full_url,
                 'image_url': image_url,
                 'author_brand': author_brand,
@@ -160,7 +159,6 @@ def parse_review(html_content, product_id):
 
     return reviews_in_page, reviewers_in_page
 
-
 def crawl_all_reviews(driver, product_id, review_count):
     if review_count == 0:
         print(f"Product {product_id} has no reviews. Skipping.")
@@ -172,48 +170,60 @@ def crawl_all_reviews(driver, product_id, review_count):
     all_page_reviews = []
     all_page_reviewers = []
     current_page = 1
+    max_empty_retries = 3
     
     while True:
-        print(f"Crawling reviews page {current_page}.")
+        if len(all_page_reviews) >= review_count:
+            break
+
+        print(f"Crawling reviews page {current_page}...")
         
-        html_content = driver.page_source
-        buttons = driver.find_elements(By.CSS_SELECTOR, "span.show-more-content")
-        for btn in buttons:
-            try:
-                if btn.is_displayed():
+        try:
+            buttons = driver.find_elements(By.CSS_SELECTOR, "span.show-more-content")
+            for btn in buttons:
+                if btn.is_displayed() and "Xem thêm" in btn.text:
                     driver.execute_script("arguments[0].click();", btn)
-                    time.sleep(0.1) 
-            except Exception as e:
-                print(f"Could not click 'See more' button: {e}")
+        except:
+            pass
+
+        html_content = driver.page_source
         reviews_in_page, reviewers_in_page = parse_review(html_content, product_id)
 
-        if not reviews_in_page and current_page == 1:
-            driver.execute_script("window.scrollTo(0, window.scrollY + 500);")
-            time.sleep(1)
-            continue
+        if not reviews_in_page:
+            if max_empty_retries > 0:
+                print(f"No reviews found, scrolling more... ({max_empty_retries} retries left)")
+                driver.execute_script("window.scrollBy(0, 800);")
+                time.sleep(2)
+                max_empty_retries -= 1
+                continue 
+            else:
+                print("Could not find reviews. Stopping to avoid infinite loop.")
+                break
 
         all_page_reviews.extend(reviews_in_page)
         all_page_reviewers.extend(reviewers_in_page)
-        
+        max_empty_retries = 3
+
         try:
-            wait = WebDriverWait(driver, 2)
-            next_button = wait.until(EC.presence_of_element_located(
-                (By.CSS_SELECTOR, "div.customer-reviews__pagination a.next")
-            ))
+            next_btns = driver.find_elements(By.CSS_SELECTOR, "div.customer-reviews__pagination a.next")
             
-            if "disabled" in next_button.get_attribute("class"):
-                print("Reached last review page.")
+            if not next_btns:
+                break
+                
+            btn = next_btns[0]
+            if "disabled" in btn.get_attribute("class") or not btn.is_displayed():
+                print("Reached last page.")
                 break
             
-            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", next_button)
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
             time.sleep(0.5)
-            next_button.click()
+            btn.click()
             
             current_page += 1
-            time.sleep(0.5)
+            time.sleep(1)
             
-        except Exception:
-            print("Stopping review crawl.")
+        except Exception as e:
+            print(f"Pagination error: {e}")
             break
             
     return all_page_reviews, all_page_reviewers
@@ -256,7 +266,6 @@ def parse_seller_info(html_content):
 
 def parse_tiki_detail_page(driver, product):
     product_url = product['product_url']
-    
     driver.get(product_url)
 
     wait = WebDriverWait(driver, 15)
@@ -269,6 +278,7 @@ def parse_tiki_detail_page(driver, product):
         print(f"Page load slow or structure error: {product_url}")
 
     html_content = driver.page_source
+    is_out_of_stock = "Sản phẩm đã hết hàng" in html_content
     soup = BeautifulSoup(html_content, 'html.parser')
     
     product_id = product['product_id']
@@ -288,10 +298,19 @@ def parse_tiki_detail_page(driver, product):
         review_count = int(count_match.group(1)) if count_match else 0
 
     score_tag = soup.find('div', style=re.compile(r'margin-right:\s*4px'))
-    review_score = float(score_tag.text.strip()) if score_tag else 0.0
+    review_score = 0.0
+    if score_tag:
+        review_score = float(score_tag.text.strip())
 
     seller_data = parse_seller_info(html_content)
     seller_id = seller_data['seller_id']
+    if is_out_of_stock and seller_id == "N/A":
+        seller_data = {
+            'seller_id': 'out_of_stock',
+            'seller_name': 'Sản phẩm đã hết hàng',
+            'seller_rating': 0.0,
+            'total_reviews': 0
+        }
 
     product_data = {
         'product_id': product_id,
@@ -356,7 +375,9 @@ def parse_tiki_detail_page(driver, product):
         'crawl_time': current_time_vn
     }
 
-    reviews, reviewers = crawl_all_reviews(driver, product_id, review_count)
+    reviews, reviewers = ([], [])
+    if review_count > 0:
+        reviews, reviewers = crawl_all_reviews(driver, product_id, review_count)
     
     return {
         'product': product_data,
@@ -365,6 +386,72 @@ def parse_tiki_detail_page(driver, product):
         'reviewers': reviewers,
         'reviews': reviews
     }
+
+def repair_and_update_sellers(cur, conn, driver):
+    print("Repairing and updating sellers...")
+    
+    cur.execute("""
+        SELECT product_id, product_url, product_name, category_id, image_url, author_brand, sold_quantity
+        FROM product 
+        WHERE seller_id = 'N/A' OR seller_id IS NULL;
+    """)
+    broken_products = cur.fetchall()
+    
+    if not broken_products:
+        print("Data is clean, no products missing Seller.")
+        return
+
+    print(f"Found {len(broken_products)} products to repair. Starting to process...")
+
+    for row in broken_products:
+        p_id, p_url, p_name, cat_id, img_url, auth, sold = row
+        
+        temp_product = {
+            'product_id': p_id, 'product_url': p_url, 'product_name': p_name,
+            'category_id': cat_id, 'image_url': img_url, 'author_brand': auth, 'sold_quantity': sold
+        }
+
+        try:
+            print(f"Getting seller for: {p_name[:30]}...")
+            re_crawled_data = parse_tiki_detail_page(driver, temp_product)
+            
+            new_seller = re_crawled_data['seller']
+            
+            if new_seller['seller_id'] == 'N/A':
+                print(f"Still cannot find seller for {p_id}, possibly due to page loading error.")
+                continue
+
+            cur.execute("""
+                INSERT INTO seller (seller_id, seller_name, seller_rating, total_reviews)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (seller_id) DO UPDATE SET 
+                    seller_name = EXCLUDED.seller_name,
+                    seller_rating = EXCLUDED.seller_rating;
+            """, (new_seller['seller_id'], new_seller['seller_name'], 
+                  new_seller['seller_rating'], new_seller['total_reviews']))
+
+            cur.execute("""
+                UPDATE product 
+                SET seller_id = %s 
+                WHERE product_id = %s;
+            """, (new_seller['seller_id'], p_id))
+
+            conn.commit()
+            print(f"Successfully repaired product {p_id}. New seller: {new_seller['seller_name']}")
+
+        except Exception as e:
+            conn.rollback()
+            print(f"Error repairing product {p_id}: {e}")
+
+    try:
+        cur.execute("""
+            DELETE FROM seller 
+            WHERE seller_id = 'N/A' 
+            AND NOT EXISTS (SELECT 1 FROM product WHERE seller_id = 'N/A');
+        """)
+        conn.commit()
+    except Exception as e:
+        print(f"Cannot delete 'N/A' row because there are still products referencing it: {e}")
 
 def main():
     conn = get_db_connection()
@@ -382,6 +469,7 @@ def main():
             f.write("")
 
     try:
+        repair_and_update_sellers(cur, conn, driver)
         cur.execute(
             """
             SELECT category_id, category_url
@@ -412,7 +500,9 @@ def main():
             cat_id, url = row
             if url in finished_categories:
                 continue
-
+            print("\n" + "--"*50)
+            print(url)
+            print("--"*50 + "\n") 
             driver.get(url)
             while click_see_more(driver):
                 pass
@@ -421,7 +511,7 @@ def main():
             products = parse_tiki_products(html_content, cat_id)
             time.sleep(1) 
             for product in products:
-                product_data = parse_tiki_detail_page(driver,product)
+                product_data = parse_tiki_detail_page(driver, product)
 
                 product_item = product_data['product']
                 price_offer_item = product_data['price_offer']
