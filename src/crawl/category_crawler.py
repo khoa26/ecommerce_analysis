@@ -5,8 +5,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from time import sleep
 
 from bs4 import BeautifulSoup
-from _shared import TIKI_URL, get_db_connection, setup_chrome_driver, create_all_tables
+from _shared import get_db_connection, setup_chrome_driver, create_all_tables
 
+TIKI_URL = "https://tiki.vn/"
 MAX_WORKERS = 1
 _print_lock = threading.Lock()
 
