@@ -53,10 +53,8 @@ def crawl_main_categories(driver):
                     'category_path': f"{title}",
                     'is_scanned': False
                 })
-    
-    category_list = category_list[:len(category_list) - 4]
-    return category_list
 
+    return category_list
 
 def crawl_sub_categories(driver, parent_id=None, level=1, parent_path=""):
     html_source = driver.page_source
