@@ -1,6 +1,7 @@
 import os
 import time
 import warnings
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -23,7 +24,6 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 BATCH_SIZE = int(os.getenv("UPLOAD_BATCH_SIZE", "1000"))
 
-# Tables in schema.sql; order respects FK (parent tables first).
 TABLE_ORDER = [
     "category",   # category_id, category_name, category_url, parent_category_id, level, category_path, is_scanned
     "seller",     # seller_id, seller_name, seller_rating, total_reviews
@@ -70,9 +70,24 @@ def read_table_from_postgres(conn, table_name: str) -> pd.DataFrame:
         return pd.read_sql_query(query, conn)
 
 
+def _to_json_serializable(value: Any) -> Any:
+    """Convert pandas Timestamp / datetime to ISO string for JSON."""
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    if isinstance(value, pd.Timestamp):
+        return value.isoformat()
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    return value
+
+
 def convert_dataframe_to_dict(df: pd.DataFrame) -> List[Dict[str, Any]]:
     df = df.where(pd.notnull(df), None)
-    return df.to_dict("records")
+    rows = df.to_dict("records")
+    return [
+        {k: _to_json_serializable(v) for k, v in row.items()}
+        for row in rows
+    ]
 
 
 def _clear_supabase_table(supabase: Client, table_name: str) -> None:
