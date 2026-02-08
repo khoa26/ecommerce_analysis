@@ -268,6 +268,12 @@ def parse_tiki_detail_page(driver, product):
     product_url = product['product_url']
     driver.get(product_url)
 
+    html_content = driver.page_source
+
+    if "Trang bạn đang tìm kiếm không tồn tại" in html_content:
+        print(f"Product {product['product_id']} does not exist. Skipping.")
+        return None
+    
     wait = WebDriverWait(driver, 15)
     try:
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "product-price__current-price")))
@@ -276,7 +282,8 @@ def parse_tiki_detail_page(driver, product):
         time.sleep(1) 
     except Exception as e:
         print(f"Page load slow or structure error: {product_url}")
-
+        return None
+    
     html_content = driver.page_source
     is_out_of_stock = "Sản phẩm đã hết hàng" in html_content
     soup = BeautifulSoup(html_content, 'html.parser')
@@ -414,6 +421,8 @@ def repair_and_update_sellers(cur, conn, driver):
         try:
             print(f"Getting seller for: {p_name[:30]}...")
             re_crawled_data = parse_tiki_detail_page(driver, temp_product)
+            if re_crawled_data is None:
+                continue
             
             new_seller = re_crawled_data['seller']
             
@@ -512,6 +521,8 @@ def main():
             time.sleep(1) 
             for product in products:
                 product_data = parse_tiki_detail_page(driver, product)
+                if product_data is None:
+                    continue
 
                 product_item = product_data['product']
                 price_offer_item = product_data['price_offer']

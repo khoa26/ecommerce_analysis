@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 from _shared import get_db_connection, setup_chrome_driver, create_all_tables
 
 TIKI_URL = "https://tiki.vn/"
-MAX_WORKERS = 1
+MAX_WORKERS = 3
 _print_lock = threading.Lock()
 
 def _log(msg):
