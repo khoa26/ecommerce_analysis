@@ -584,10 +584,14 @@ def main():
                         """
                         INSERT INTO review (review_id, product_id, reviewer_id, rating_score, review_content, thank_count, review_time, usage_duration)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (review_id) DO NOTHING; 
+                        ON CONFLICT (product_id, reviewer_id) 
+                        DO UPDATE SET 
+                            thank_count = EXCLUDED.thank_count,
+                            review_content = EXCLUDED.review_content;
                         """,
-                        (review['review_id'], review['product_id'], review['reviewer_id'], review['rating_score'], 
-                        review['review_content'], review['thank_count'], review['review_time'], review['usage_duration'])
+                        (review['review_id'], review['product_id'], review['reviewer_id'], 
+                        review['rating_score'], review['review_content'], review['thank_count'], 
+                        review['review_time'], review['usage_duration'])
                     )
                 conn.commit()
 
