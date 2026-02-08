@@ -477,14 +477,14 @@ def main():
             WHERE is_scanned = TRUE
             AND (
                 category_path LIKE 'Nhà Sách Tiki%'
-                -- OR category_path LIKE 'Điện Thoại - Máy Tính Bảng%' 
-                -- OR category_path LIKE 'Laptop - Máy Vi Tính - Linh kiện%' 
-                -- OR category_path LIKE 'Thiết Bị Số - Phụ Kiện Số%' 
-                -- OR category_path LIKE 'Điện Gia Dụng%' 
-                -- OR category_path LIKE 'Làm Đẹp - Sức Khỏe%' 
-                -- OR category_path LIKE 'Điện Tử - Điện Lạnh%' 
                 -- OR category_path LIKE 'Nhà Cửa - Đời Sống%' 
-                -- OR category_path LIKE 'Máy Ảnh - Máy Quay Phim%'
+                -- OR category_path LIKE 'Điện Tử - Điện Lạnh%' 
+                -- OR category_path LIKE 'Làm Đẹp - Sức Khỏe%' 
+                -- OR category_path LIKE 'Đồ Chơi - Mẹ & Bé%' 
+                -- OR category_path LIKE 'Laptop - Máy Vi Tính - Linh kiện%' 
+                -- OR category_path LIKE 'Thể Thao - Dã Ngoại%' 
+                -- OR category_path LIKE 'Điện Gia Dụng%'
+                -- OR category_path LIKE 'Thiết Bị Số - Phụ Kiện Số%'
             )
             AND NOT EXISTS (
                 SELECT 1 
