@@ -21,7 +21,7 @@ def click_see_more(driver, timeout=10):
         driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", see_more_btn)
         time.sleep(0.5)
         driver.execute_script("arguments[0].click();", see_more_btn)
-        time.sleep(1)
+        time.sleep(0.5)
         print("Clicked 'See more', loading more products...")
         return True
     except Exception:
@@ -165,7 +165,7 @@ def crawl_all_reviews(driver, product_id, review_count):
         return [], []
     
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight / 2);")
-    time.sleep(1.5)
+    time.sleep(0.5)
 
     all_page_reviews = []
     all_page_reviewers = []
@@ -193,7 +193,7 @@ def crawl_all_reviews(driver, product_id, review_count):
             if max_empty_retries > 0:
                 print(f"No reviews found, scrolling more... ({max_empty_retries} retries left)")
                 driver.execute_script("window.scrollBy(0, 800);")
-                time.sleep(2)
+                time.sleep(0.5)
                 max_empty_retries -= 1
                 continue 
             else:
@@ -220,7 +220,7 @@ def crawl_all_reviews(driver, product_id, review_count):
             btn.click()
             
             current_page += 1
-            time.sleep(1)
+            time.sleep(0.5)
             
         except Exception as e:
             print(f"Pagination error: {e}")
@@ -268,7 +268,13 @@ def parse_tiki_detail_page(driver, product):
     product_url = product['product_url']
     driver.get(product_url)
 
-    wait = WebDriverWait(driver, 15)
+    html_content = driver.page_source
+
+    if "Trang bạn đang tìm kiếm không tồn tại" in html_content:
+        print(f"Product {product['product_id']} does not exist. Skipping.")
+        return None
+    
+    wait = WebDriverWait(driver, 10)
     try:
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "product-price__current-price")))
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "seller-name")))
@@ -276,9 +282,11 @@ def parse_tiki_detail_page(driver, product):
         time.sleep(1) 
     except Exception as e:
         print(f"Page load slow or structure error: {product_url}")
-
+    
     html_content = driver.page_source
     is_out_of_stock = "Sản phẩm đã hết hàng" in html_content
+    is_coming_soon = "Sản phẩm sắp có hàng" in html_content
+
     soup = BeautifulSoup(html_content, 'html.parser')
     
     product_id = product['product_id']
@@ -303,21 +311,28 @@ def parse_tiki_detail_page(driver, product):
         review_score = float(score_tag.text.strip())
 
     seller_data = parse_seller_info(html_content)
-    seller_id = seller_data['seller_id']
-    if is_out_of_stock and seller_id == "N/A":
-        seller_data = {
-            'seller_id': 'out_of_stock',
-            'seller_name': 'Sản phẩm đã hết hàng',
-            'seller_rating': 0.0,
-            'total_reviews': 0
-        }
+    if seller_data['seller_id'] == "N/A":
+        if is_out_of_stock:
+            seller_data = {
+                'seller_id': 'out_of_stock',
+                'seller_name': 'Sản phẩm đã hết hàng',
+                'seller_rating': 0.0,
+                'total_reviews': 0
+            }
+        elif is_coming_soon:
+            seller_data = {
+                'seller_id': 'coming_soon',
+                'seller_name': 'Sản phẩm sắp có hàng',
+                'seller_rating': 0.0,
+                'total_reviews': 0
+            }
 
     product_data = {
         'product_id': product_id,
         'product_name': product_name,
         'short_description': short_description,
         'category_id': category_id,
-        'seller_id': seller_id,
+        'seller_id': seller_data['seller_id'],
         'product_url': product_url,
         'image_url': image_url,
         'author_brand': author_brand,
@@ -412,8 +427,10 @@ def repair_and_update_sellers(cur, conn, driver):
         }
 
         try:
-            print(f"Getting seller for: {p_name[:30]}...")
+            print(f"Getting seller for: {p_name}...")
             re_crawled_data = parse_tiki_detail_page(driver, temp_product)
+            if re_crawled_data is None:
+                continue
             
             new_seller = re_crawled_data['seller']
             
@@ -453,6 +470,132 @@ def repair_and_update_sellers(cur, conn, driver):
     except Exception as e:
         print(f"Cannot delete 'N/A' row because there are still products referencing it: {e}")
 
+def is_product_exists(cur, product_id):
+    cur.execute("SELECT 1 FROM product WHERE product_id = %s LIMIT 1;", (product_id,))
+    return cur.fetchone() is not None
+
+def repair_finished_categories(cur, conn, driver):
+    print("Repairing finished categories...")
+    
+    if not os.path.exists("finished_categories.txt"):
+        print("Cannot find finished_categories.txt")
+        return
+
+    with open("finished_categories.txt", "r", encoding="utf-8") as f:
+        urls = [line.strip() for line in f.readlines() if line.strip()]
+
+    for url in urls:
+        print(f"\nChecking category: {url}")
+        
+        cur.execute("SELECT category_id FROM category WHERE category_url = %s", (url,))
+        result = cur.fetchone()
+        if not result:
+            print(f"Cannot find URL in category table. Skipping.")
+            continue
+        cat_id = result[0]
+
+        driver.get(url)
+        while click_see_more(driver):
+            pass
+        
+        html_content = driver.page_source
+        products_on_web = parse_tiki_products(html_content, cat_id)
+        
+        missing_count = 0
+        for p in products_on_web:
+            p_id = p['product_id']
+            
+            cur.execute("SELECT 1 FROM product WHERE product_id = %s", (p_id,))
+            if not cur.fetchone():
+                print(f"Missing product: {p_id}. Starting to crawl...")
+                
+                try:
+                    product_data = parse_tiki_detail_page(driver, p)
+                    if product_data:
+                        save_to_db(cur, conn, product_data)
+                        missing_count += 1
+                except Exception as e:
+                    print(f"Error crawling product {p_id}: {e}")
+        
+        if missing_count == 0:
+            print(f"Category is fully data (Total: {len(products_on_web)} products).")
+        else:
+            print(f"Successfully crawled {missing_count} products for this category.")
+
+def save_to_db(cur, conn, data):
+    product = data['product']
+    price_offer = data['price_offer']
+    seller = data['seller']
+    reviewers = data['reviewers']
+    reviews = data['reviews']
+
+    cur.execute(
+        """
+        INSERT INTO seller (seller_id, seller_name, seller_rating, total_reviews)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (seller_id) DO UPDATE SET 
+            seller_name = EXCLUDED.seller_name,
+            seller_rating = EXCLUDED.seller_rating,
+            total_reviews = EXCLUDED.total_reviews;
+        """,
+        (seller['seller_id'], seller['seller_name'], seller['seller_rating'], seller['total_reviews'])
+    )
+
+    cur.execute(
+        """
+        INSERT INTO product (product_id, product_name, short_description, category_id, seller_id, product_url, image_url, author_brand, sold_quantity, review_count, review_score)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (product_id) DO UPDATE SET 
+            sold_quantity = EXCLUDED.sold_quantity,
+            review_count = EXCLUDED.review_count,
+            review_score = EXCLUDED.review_score,
+            short_description = EXCLUDED.short_description;
+        """,
+        (product['product_id'], product['product_name'], product['short_description'], 
+        product['category_id'], seller['seller_id'], product['product_url'], 
+        product['image_url'], product['author_brand'], product['sold_quantity'], 
+        product['review_count'], product['review_score'])
+    )
+
+    cur.execute(
+        """
+        INSERT INTO price_offer (offer_id, product_id, current_price, original_price, discount_percent, coupon_available, extra_services, crawl_time)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        (price_offer['offer_id'], price_offer['product_id'], price_offer['current_price'], 
+        price_offer['original_price'], price_offer['discount_percent'], 
+        price_offer['coupon_available'], price_offer['extra_services'], price_offer['crawl_time'])
+    )
+
+    for reviewer in reviewers:
+        cur.execute(
+            """
+            INSERT INTO reviewer (reviewer_id, reviewer_name, reviewer_seniority, reviewer_contributions, reviewer_received_thanks)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (reviewer_id) DO UPDATE SET 
+                reviewer_contributions = EXCLUDED.reviewer_contributions,
+                reviewer_received_thanks = EXCLUDED.reviewer_received_thanks;
+            """,
+            (reviewer['reviewer_id'], reviewer['reviewer_name'], reviewer['reviewer_seniority'], 
+            reviewer['reviewer_contributions'], reviewer['reviewer_received_thanks'])
+        )
+
+    for review in reviews:
+        cur.execute(
+            """
+            INSERT INTO review (review_id, product_id, reviewer_id, rating_score, review_content, thank_count, review_time, usage_duration)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (product_id, reviewer_id) 
+            DO UPDATE SET 
+                thank_count = EXCLUDED.thank_count,
+                review_content = EXCLUDED.review_content;
+            """,
+            (review['review_id'], review['product_id'], review['reviewer_id'], 
+            review['rating_score'], review['review_content'], review['thank_count'], 
+            review['review_time'], review['usage_duration'])
+        )
+    conn.commit()
+
 def main():
     conn = get_db_connection()
     cur = conn.cursor()
@@ -470,6 +613,9 @@ def main():
 
     try:
         repair_and_update_sellers(cur, conn, driver)
+        
+        repair_finished_categories(cur, conn, driver)
+
         cur.execute(
             """
             SELECT category_id, category_url
@@ -509,9 +655,18 @@ def main():
             
             html_content = driver.page_source
             products = parse_tiki_products(html_content, cat_id)
-            time.sleep(1) 
-            for product in products:
+
+            products_to_crawl = []
+            for p in products:
+                if not is_product_exists(cur, p['product_id']):
+                    products_to_crawl.append(p)
+            
+            print(f"Found {len(products_to_crawl)} products to crawl.")
+            time.sleep(0.5) 
+            for product in products_to_crawl:
                 product_data = parse_tiki_detail_page(driver, product)
+                if product_data is None:
+                    continue
 
                 product_item = product_data['product']
                 price_offer_item = product_data['price_offer']
@@ -528,76 +683,15 @@ def main():
                     print(review)
                 print("--------------------------------")
                 
-                cur.execute(
-                    """
-                    INSERT INTO seller (seller_id, seller_name, seller_rating, total_reviews)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (seller_id) DO UPDATE SET 
-                        seller_name = EXCLUDED.seller_name,
-                        seller_rating = EXCLUDED.seller_rating,
-                        total_reviews = EXCLUDED.total_reviews;
-                    """,
-                    (seller_item['seller_id'], seller_item['seller_name'], seller_item['seller_rating'], seller_item['total_reviews'])
-                )
+                save_to_db(cur, conn, product_data)
 
-                cur.execute(
-                    """
-                    INSERT INTO product (product_id, product_name, short_description, category_id, seller_id, product_url, image_url, author_brand, sold_quantity, review_count, review_score)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (product_id) DO UPDATE SET 
-                        sold_quantity = EXCLUDED.sold_quantity,
-                        review_count = EXCLUDED.review_count,
-                        review_score = EXCLUDED.review_score,
-                        short_description = EXCLUDED.short_description;
-                    """,
-                    (product_item['product_id'], product_item['product_name'], product_item['short_description'], 
-                    product_item['category_id'], seller_item['seller_id'], product_item['product_url'], 
-                    product_item['image_url'], product_item['author_brand'], product_item['sold_quantity'], 
-                    product_item['review_count'], product_item['review_score'])
-                )
-
-                cur.execute(
-                    """
-                    INSERT INTO price_offer (offer_id, product_id, current_price, original_price, discount_percent, coupon_available, extra_services, crawl_time)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """,
-                    (price_offer_item['offer_id'], price_offer_item['product_id'], price_offer_item['current_price'], 
-                    price_offer_item['original_price'], price_offer_item['discount_percent'], 
-                    price_offer_item['coupon_available'], price_offer_item['extra_services'], price_offer_item['crawl_time'])
-                )
-
-                for reviewer in reviewers_item:
-                    cur.execute(
-                        """
-                        INSERT INTO reviewer (reviewer_id, reviewer_name, reviewer_seniority, reviewer_contributions, reviewer_received_thanks)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT (reviewer_id) DO UPDATE SET 
-                            reviewer_contributions = EXCLUDED.reviewer_contributions,
-                            reviewer_received_thanks = EXCLUDED.reviewer_received_thanks;
-                        """,
-                        (reviewer['reviewer_id'], reviewer['reviewer_name'], reviewer['reviewer_seniority'], 
-                        reviewer['reviewer_contributions'], reviewer['reviewer_received_thanks'])
-                    )
-
-                for review in reviews_item:
-                    cur.execute(
-                        """
-                        INSERT INTO review (review_id, product_id, reviewer_id, rating_score, review_content, thank_count, review_time, usage_duration)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (product_id, reviewer_id) 
-                        DO UPDATE SET 
-                            thank_count = EXCLUDED.thank_count,
-                            review_content = EXCLUDED.review_content;
-                        """,
-                        (review['review_id'], review['product_id'], review['reviewer_id'], 
-                        review['rating_score'], review['review_content'], review['thank_count'], 
-                        review['review_time'], review['usage_duration'])
-                    )
-                conn.commit()
-
-            finished_categories.add(url)
-            with open("finished_categories.txt", "w", encoding="utf-8") as f:
-                f.write("\n".join(list(finished_categories)) + "\n")
+            cur.execute("SELECT COUNT(*) FROM product WHERE category_id = %s", (cat_id,))
+            count_in_db = cur.fetchone()[0]
+            
+            if count_in_db >= len(products):
+                finished_categories.add(url)
+                with open("finished_categories.txt", "w", encoding="utf-8") as f:
+                    f.write("\n".join(list(finished_categories)) + "\n")
     finally:
         driver.quit()
         cur.close()
