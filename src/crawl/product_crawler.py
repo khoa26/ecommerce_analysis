@@ -379,8 +379,11 @@ def parse_tiki_detail_page(driver, product):
     vn_tz = timezone(timedelta(hours=7))
     current_time_vn = datetime.now(vn_tz).isoformat()
 
+    combined_offer = f"{product_id}_{current_time_vn}"
+    offer_id = hashlib.md5(combined_offer.encode()).hexdigest()[:10]
+    
     price_offer_data = {
-        'offer_id': str(uuid.uuid4())[:8],
+        'offer_id': offer_id,
         'product_id': product_id,
         'current_price': current_price,
         'original_price': original_price,
