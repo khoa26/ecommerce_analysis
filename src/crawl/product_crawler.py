@@ -344,7 +344,8 @@ def parse_tiki_detail_page(driver, product):
     curr_tag = soup.find('div', class_='product-price__current-price')
     current_price = 0.0
     if curr_tag:
-        current_price = float(re.sub(r'\D', '', curr_tag.get_text()))
+        price_text = re.sub(r'\D', '', curr_tag.get_text())
+        current_price = float(price_text) if price_text else 0.0
 
     disc_tag = soup.find('div', class_='product-price__discount-rate')
     discount_percent = 0.0
@@ -379,8 +380,10 @@ def parse_tiki_detail_page(driver, product):
     vn_tz = timezone(timedelta(hours=7))
     current_time_vn = datetime.now(vn_tz).isoformat()
 
+    combined_offer = f"{product_id}_{current_time_vn}"
+    offer_id = hashlib.md5(combined_offer.encode()).hexdigest()[:10]
     price_offer_data = {
-        'offer_id': str(uuid.uuid4())[:8],
+        'offer_id': offer_id,
         'product_id': product_id,
         'current_price': current_price,
         'original_price': original_price,
@@ -637,7 +640,8 @@ def main():
                 FROM category sub 
                 WHERE sub.parent_category_id = c.category_id
             )
-            ORDER BY level DESC;
+            ORDER BY level DESC
+            OFFSET 400;
             """,
         )
         rows = cur.fetchall()
