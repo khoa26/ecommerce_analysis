@@ -382,6 +382,7 @@ def parse_tiki_detail_page(driver, product):
 
     combined_offer = f"{product_id}_{current_time_vn}"
     offer_id = hashlib.md5(combined_offer.encode()).hexdigest()[:10]
+    
     price_offer_data = {
         'offer_id': offer_id,
         'product_id': product_id,
