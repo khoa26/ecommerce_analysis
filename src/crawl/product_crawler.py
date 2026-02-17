@@ -526,6 +526,174 @@ def repair_finished_categories(cur, conn, driver):
         else:
             print(f"Successfully crawled {missing_count} products for this category.")
 
+def get_current_price_only(driver, url, product_id):
+    try:
+        driver.get(url)
+        wait = WebDriverWait(driver, 10)
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "product-price__current-price")))
+        
+        html_content = driver.page_source
+        soup = BeautifulSoup(html_content, 'html.parser')
+
+        curr_tag = soup.find('div', class_='product-price__current-price')
+        price_text = re.sub(r'\D', '', curr_tag.get_text()) if curr_tag else ""
+        current_price = float(price_text) if price_text else 0.0
+
+        disc_tag = soup.find('div', class_='product-price__discount-rate')
+        discount_percent = 0.0
+        if disc_tag:
+            disc_match = re.search(r'\d+', disc_tag.get_text())
+            discount_percent = float(disc_match.group()) if disc_match else 0.0
+
+        orig_tag = soup.find('div', class_='product-price__original-price')
+        original_price = 0.0
+        if orig_tag:
+            orig_text = re.sub(r'\D', '', orig_tag.get_text())
+            original_price = float(orig_text) if orig_text else 0.0
+        
+        if original_price == 0:
+            original_price = current_price
+
+        coupons = [c.text for c in soup.find_all('div', class_='sc-14beda0e-0')]
+        service_items = soup.find_all('div', class_='sc-34e0efdc-3 jcYGog benefit-item')
+        services = [item.find('div').text.strip() for item in service_items if item.find('div')]
+
+        vn_tz = timezone(timedelta(hours=7))
+        current_time_vn = datetime.now(vn_tz).isoformat()
+        
+        combined_offer = f"{product_id}_{current_time_vn}"
+        offer_id = hashlib.md5(combined_offer.encode()).hexdigest()[:10]
+
+        return {
+            'offer_id': offer_id,
+            'product_id': product_id,
+            'current_price': current_price,
+            'original_price': original_price,
+            'discount_percent': discount_percent,
+            'coupon_available': ", ".join(coupons),
+            'extra_services': ", ".join(services),
+            'crawl_time': current_time_vn
+        }
+    except Exception as e:
+        print(f"Error getting current price for {product_id}: {e}")
+        return None
+
+def update_price_offer(cur, conn, driver):
+    try:
+        cur.execute("SELECT product_id, product_url FROM product ORDER BY product_id ASC;")
+        products = cur.fetchall()
+        print(f"Starting to update price for {len(products)} products...")
+
+        for p_id, p_url in products:
+            print(f"Updating: {p_id}")
+            price_data = get_current_price_only(driver, p_url, p_id)
+            print(price_data)
+            print("--------------------------------")
+            if price_data:
+                cur.execute(
+                    """
+                    INSERT INTO price_offer (offer_id, product_id, current_price, original_price, discount_percent, coupon_available, extra_services, crawl_time)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (offer_id) DO NOTHING;
+                    """,
+                    (price_data['offer_id'], price_data['product_id'], price_data['current_price'], 
+                     price_data['original_price'], price_data['discount_percent'], 
+                     price_data['coupon_available'], price_data['extra_services'], price_data['crawl_time'])
+                )
+                conn.commit()
+                print(f"Successfully saved new price: {price_data['current_price']}")
+            
+            # time.sleep(0.5)
+    except Exception as e:
+        print(f"Error updating price offer: {e}")
+
+def crawl_base_product(cur, conn, driver):
+
+    if os.path.exists("finished_categories.txt"):
+        with open("finished_categories.txt", "r", encoding="utf-8") as f:
+            finished_categories = set([line.strip() for line in f.readlines() if line.strip()])
+    else:
+        finished_categories = set()
+        with open("finished_categories.txt", "w", encoding="utf-8") as f:
+            f.write("")
+    
+    cur.execute(
+        """
+        SELECT category_id, category_url
+        FROM category c
+        WHERE is_scanned = TRUE
+        AND (
+            category_path LIKE 'Nhà Sách Tiki%'
+            -- OR category_path LIKE 'Nhà Cửa - Đời Sống%' 
+            -- OR category_path LIKE 'Điện Tử - Điện Lạnh%' 
+            -- OR category_path LIKE 'Làm Đẹp - Sức Khỏe%' 
+            -- OR category_path LIKE 'Đồ Chơi - Mẹ & Bé%' 
+            -- OR category_path LIKE 'Laptop - Máy Vi Tính - Linh kiện%' 
+            -- OR category_path LIKE 'Thể Thao - Dã Ngoại%' 
+            -- OR category_path LIKE 'Điện Gia Dụng%'
+            -- OR category_path LIKE 'Thiết Bị Số - Phụ Kiện Số%'
+        )
+        AND NOT EXISTS (
+            SELECT 1 
+            FROM category sub 
+            WHERE sub.parent_category_id = c.category_id
+        )
+        ORDER BY level DESC;
+        """,
+    )
+    rows = cur.fetchall()
+    print(f"Found {len(rows)} categories to crawl.")
+    for row in rows:
+        cat_id, url = row
+        if url in finished_categories:
+            continue
+        print("\n" + "--"*50)
+        print(url)
+        print("--"*50 + "\n") 
+        driver.get(url)
+        while click_see_more(driver):
+            pass
+        
+        html_content = driver.page_source
+        products = parse_tiki_products(html_content, cat_id)
+
+        products_to_crawl = []
+        for p in products:
+            if not is_product_exists(cur, p['product_id']):
+                products_to_crawl.append(p)
+        
+        print(f"Found {len(products_to_crawl)} products to crawl.")
+        time.sleep(0.5) 
+        for product in products_to_crawl:
+            product_data = parse_tiki_detail_page(driver, product)
+            if product_data is None:
+                continue
+
+            product_item = product_data['product']
+            price_offer_item = product_data['price_offer']
+            seller_item = product_data['seller']
+            reviewers_item = product_data['reviewers']
+            reviews_item = product_data['reviews']
+
+            print(product_item)
+            print(price_offer_item)
+            print(seller_item)
+            for reviewer in reviewers_item:
+                print(reviewer)
+            for review in reviews_item:
+                print(review)
+            print("--------------------------------")
+            
+            save_to_db(cur, conn, product_data)
+
+        cur.execute("SELECT COUNT(*) FROM product WHERE category_id = %s", (cat_id,))
+        count_in_db = cur.fetchone()[0]
+        
+        if count_in_db >= len(products):
+            finished_categories.add(url)
+            with open("finished_categories.txt", "w", encoding="utf-8") as f:
+                f.write("\n".join(list(finished_categories)) + "\n")
+
 def save_to_db(cur, conn, data):
     product = data['product']
     price_offer = data['price_offer']
@@ -607,96 +775,14 @@ def main():
 
     driver = setup_chrome_driver()
 
-    if os.path.exists("finished_categories.txt"):
-        with open("finished_categories.txt", "r", encoding="utf-8") as f:
-            finished_categories = set([line.strip() for line in f.readlines() if line.strip()])
-    else:
-        finished_categories = set()
-        with open("finished_categories.txt", "w", encoding="utf-8") as f:
-            f.write("")
-
     try:
         repair_and_update_sellers(cur, conn, driver)
         
         repair_finished_categories(cur, conn, driver)
 
-        cur.execute(
-            """
-            SELECT category_id, category_url
-            FROM category c
-            WHERE is_scanned = TRUE
-            AND (
-                category_path LIKE 'Nhà Sách Tiki%'
-                -- OR category_path LIKE 'Nhà Cửa - Đời Sống%' 
-                -- OR category_path LIKE 'Điện Tử - Điện Lạnh%' 
-                -- OR category_path LIKE 'Làm Đẹp - Sức Khỏe%' 
-                -- OR category_path LIKE 'Đồ Chơi - Mẹ & Bé%' 
-                -- OR category_path LIKE 'Laptop - Máy Vi Tính - Linh kiện%' 
-                -- OR category_path LIKE 'Thể Thao - Dã Ngoại%' 
-                -- OR category_path LIKE 'Điện Gia Dụng%'
-                -- OR category_path LIKE 'Thiết Bị Số - Phụ Kiện Số%'
-            )
-            AND NOT EXISTS (
-                SELECT 1 
-                FROM category sub 
-                WHERE sub.parent_category_id = c.category_id
-            )
-            ORDER BY level DESC
-            OFFSET 400;
-            """,
-        )
-        rows = cur.fetchall()
-        print(f"Found {len(rows)} categories to crawl.")
-        for row in rows:
-            cat_id, url = row
-            if url in finished_categories:
-                continue
-            print("\n" + "--"*50)
-            print(url)
-            print("--"*50 + "\n") 
-            driver.get(url)
-            while click_see_more(driver):
-                pass
-            
-            html_content = driver.page_source
-            products = parse_tiki_products(html_content, cat_id)
+        update_price_offer(cur, conn, driver)
 
-            products_to_crawl = []
-            for p in products:
-                if not is_product_exists(cur, p['product_id']):
-                    products_to_crawl.append(p)
-            
-            print(f"Found {len(products_to_crawl)} products to crawl.")
-            time.sleep(0.5) 
-            for product in products_to_crawl:
-                product_data = parse_tiki_detail_page(driver, product)
-                if product_data is None:
-                    continue
-
-                product_item = product_data['product']
-                price_offer_item = product_data['price_offer']
-                seller_item = product_data['seller']
-                reviewers_item = product_data['reviewers']
-                reviews_item = product_data['reviews']
-
-                print(product_item)
-                print(price_offer_item)
-                print(seller_item)
-                for reviewer in reviewers_item:
-                    print(reviewer)
-                for review in reviews_item:
-                    print(review)
-                print("--------------------------------")
-                
-                save_to_db(cur, conn, product_data)
-
-            cur.execute("SELECT COUNT(*) FROM product WHERE category_id = %s", (cat_id,))
-            count_in_db = cur.fetchone()[0]
-            
-            if count_in_db >= len(products):
-                finished_categories.add(url)
-                with open("finished_categories.txt", "w", encoding="utf-8") as f:
-                    f.write("\n".join(list(finished_categories)) + "\n")
+        crawl_base_product(cur, conn, driver)
     finally:
         driver.quit()
         cur.close()
