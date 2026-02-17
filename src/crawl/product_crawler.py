@@ -531,6 +531,8 @@ def get_current_price_only(driver, url, product_id):
         driver.get(url)
         wait = WebDriverWait(driver, 10)
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "product-price__current-price")))
+        driver.execute_script("window.scrollTo(0, 1000);")
+        time.sleep(0.8)
         
         html_content = driver.page_source
         soup = BeautifulSoup(html_content, 'html.parser')
@@ -580,15 +582,15 @@ def get_current_price_only(driver, url, product_id):
 
 def update_price_offer(cur, conn, driver):
     try:
-        cur.execute("SELECT product_id, product_url FROM product ORDER BY product_id ASC;")
+        cur.execute("SELECT product_id, product_url FROM product ORDER BY product_id ASC LIMIT 85000;")
         products = cur.fetchall()
         print(f"Starting to update price for {len(products)} products...")
-
+        count = 0
         for p_id, p_url in products:
-            print(f"Updating: {p_id}")
+            print("--------------------------------")
+            print(f"[{count}] Updating: {p_id}")
             price_data = get_current_price_only(driver, p_url, p_id)
             print(price_data)
-            print("--------------------------------")
             if price_data:
                 cur.execute(
                     """
@@ -604,6 +606,7 @@ def update_price_offer(cur, conn, driver):
                 print(f"Successfully saved new price: {price_data['current_price']}")
             
             # time.sleep(0.5)
+            count += 1
     except Exception as e:
         print(f"Error updating price offer: {e}")
 
@@ -776,13 +779,13 @@ def main():
     driver = setup_chrome_driver()
 
     try:
-        repair_and_update_sellers(cur, conn, driver)
+        # crawl_base_product(cur, conn, driver)
+
+        # repair_and_update_sellers(cur, conn, driver)
         
-        repair_finished_categories(cur, conn, driver)
+        # repair_finished_categories(cur, conn, driver)
 
         update_price_offer(cur, conn, driver)
-
-        crawl_base_product(cur, conn, driver)
     finally:
         driver.quit()
         cur.close()
