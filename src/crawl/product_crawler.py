@@ -526,13 +526,21 @@ def repair_finished_categories(cur, conn, driver):
         else:
             print(f"Successfully crawled {missing_count} products for this category.")
 
-def get_current_price_only(driver, url, product_id):
+def get_current_price_only(driver, url, product_id):        
     try:
         driver.get(url)
+
+        html_content = driver.page_source
+        if "Trang bạn đang tìm kiếm không tồn tại" in html_content:
+            return None
+        
+        # if "Sản phẩm đã hết hàng" in html_content or "Sản phẩm sắp có hàng" in html_content:
+        #     return None
+        
         wait = WebDriverWait(driver, 10)
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "product-price__current-price")))
-        driver.execute_script("window.scrollTo(0, 1000);")
-        time.sleep(0.8)
+        driver.execute_script("window.scrollTo(0, 400);")
+        time.sleep(1)
         
         html_content = driver.page_source
         soup = BeautifulSoup(html_content, 'html.parser')
@@ -543,17 +551,19 @@ def get_current_price_only(driver, url, product_id):
 
         disc_tag = soup.find('div', class_='product-price__discount-rate')
         discount_percent = 0.0
+        original_price = 0.0
+
         if disc_tag:
             disc_match = re.search(r'\d+', disc_tag.get_text())
             discount_percent = float(disc_match.group()) if disc_match else 0.0
 
-        orig_tag = soup.find('div', class_='product-price__original-price')
-        original_price = 0.0
-        if orig_tag:
-            orig_text = re.sub(r'\D', '', orig_tag.get_text())
-            original_price = float(orig_text) if orig_text else 0.0
-        
-        if original_price == 0:
+            try:
+                wait.until(EC.presence_of_element_located((By.CLASS_NAME, "product-price__original-price")))
+                orig_tag = soup.find('div', class_='product-price__original-price')
+                original_price = float(re.sub(r'\D', '', orig_tag.get_text()))
+            except:
+                original_price = round(current_price / (1 - (discount_percent / 100)), -3)
+        else:
             original_price = current_price
 
         coupons = [c.text for c in soup.find_all('div', class_='sc-14beda0e-0')]
@@ -582,7 +592,7 @@ def get_current_price_only(driver, url, product_id):
 
 def update_price_offer(cur, conn, driver):
     try:
-        cur.execute("SELECT product_id, product_url FROM product ORDER BY product_id ASC LIMIT 85000;")
+        cur.execute("SELECT product_id, product_url FROM product ORDER BY product_id ASC;")
         products = cur.fetchall()
         print(f"Starting to update price for {len(products)} products...")
         count = 0
@@ -779,11 +789,11 @@ def main():
     driver = setup_chrome_driver()
 
     try:
-        # crawl_base_product(cur, conn, driver)
+        crawl_base_product(cur, conn, driver)
 
-        # repair_and_update_sellers(cur, conn, driver)
+        repair_and_update_sellers(cur, conn, driver)
         
-        # repair_finished_categories(cur, conn, driver)
+        repair_finished_categories(cur, conn, driver)
 
         update_price_offer(cur, conn, driver)
     finally:
