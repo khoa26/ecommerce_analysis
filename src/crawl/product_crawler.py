@@ -529,42 +529,35 @@ def repair_finished_categories(cur, conn, driver):
 def get_current_price_only(driver, url, product_id):        
     try:
         driver.get(url)
-
+        wait = WebDriverWait(driver, 8)
         html_content = driver.page_source
-        if "Trang bạn đang tìm kiếm không tồn tại" in html_content:
-            return None
+        if "Trang bạn đang tìm kiếm không tồn tại" in html_content: return None
         
-        # if "Sản phẩm đã hết hàng" in html_content or "Sản phẩm sắp có hàng" in html_content:
-        #     return None
-        
-        wait = WebDriverWait(driver, 10)
-        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "product-price__current-price")))
-        driver.execute_script("window.scrollTo(0, 400);")
-        time.sleep(1)
-        
-        html_content = driver.page_source
         soup = BeautifulSoup(html_content, 'html.parser')
-
-        curr_tag = soup.find('div', class_='product-price__current-price')
-        price_text = re.sub(r'\D', '', curr_tag.get_text()) if curr_tag else ""
-        current_price = float(price_text) if price_text else 0.0
-
         disc_tag = soup.find('div', class_='product-price__discount-rate')
-        discount_percent = 0.0
-        original_price = 0.0
 
         if disc_tag:
-            disc_match = re.search(r'\d+', disc_tag.get_text())
-            discount_percent = float(disc_match.group()) if disc_match else 0.0
-
             try:
-                wait.until(EC.presence_of_element_located((By.CLASS_NAME, "product-price__original-price")))
-                orig_tag = soup.find('div', class_='product-price__original-price')
-                original_price = float(re.sub(r'\D', '', orig_tag.get_text()))
+                wait.until(lambda d: 
+                    d.find_element(By.CLASS_NAME, "product-price__current-price").text != 
+                    d.find_element(By.CLASS_NAME, "product-price__original-price").text
+                )
             except:
-                original_price = round(current_price / (1 - (discount_percent / 100)), -3)
-        else:
-            original_price = current_price
+                print(f"Timeout waiting for price update for {product_id}, using calculation logic.")
+
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        
+        curr_tag = soup.find('div', class_='product-price__current-price')
+        current_price = float(re.sub(r'\D', '', curr_tag.get_text())) if curr_tag else 0.0
+        
+        orig_tag = soup.find('div', class_='product-price__original-price')
+        original_price = float(re.sub(r'\D', '', orig_tag.get_text())) if orig_tag else current_price
+        
+        disc_match = re.search(r'\d+', disc_tag.get_text()) if disc_tag else None
+        discount_percent = float(disc_match.group()) if disc_match else 0.0
+
+        if discount_percent > 0 and original_price <= current_price:
+            current_price = round(original_price * (1 - (discount_percent / 100)), -3)
 
         coupons = [c.text for c in soup.find_all('div', class_='sc-14beda0e-0')]
         service_items = soup.find_all('div', class_='sc-34e0efdc-3 jcYGog benefit-item')
@@ -789,11 +782,11 @@ def main():
     driver = setup_chrome_driver()
 
     try:
-        crawl_base_product(cur, conn, driver)
+        # crawl_base_product(cur, conn, driver)
 
-        repair_and_update_sellers(cur, conn, driver)
+        # repair_and_update_sellers(cur, conn, driver)
         
-        repair_finished_categories(cur, conn, driver)
+        # repair_finished_categories(cur, conn, driver)
 
         update_price_offer(cur, conn, driver)
     finally:
