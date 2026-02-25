@@ -560,6 +560,7 @@ def get_detailed_coupons(driver):
         p_tags = item.find_all('p', class_='gdZzDE')
         condition = p_tags[0].text.strip() if len(p_tags) > 0 else "N/A"
         expiry = p_tags[1].text.strip() if len(p_tags) > 1 else "N/A"
+        expiry = expiry.replace("HSD:", "").replace("HSD :", "").strip()
         
         save_btn = item.find('button', attrs={'data-view-id': 'coupon_save_button'})
         coupon_code = save_btn.get('data-view-label', 'N/A') if save_btn else "N/A"

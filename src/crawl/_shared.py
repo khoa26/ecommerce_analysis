@@ -45,6 +45,9 @@ def setup_chrome_driver():
     options.add_argument("--disable-software-rasterizer")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu-sandbox")
+
+    options.add_argument("--blink-settings=imagesEnabled=false")
+    
     options.add_experimental_option(
         "prefs",
         {
