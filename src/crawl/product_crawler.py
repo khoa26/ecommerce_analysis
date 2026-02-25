@@ -681,7 +681,7 @@ def get_current_price_only(driver, url, product_id):
 
 def update_price_offer(cur, conn, driver):
     try:
-        cur.execute("SELECT product_id, product_url FROM product ORDER BY product_id ASC LIMIT 85000;")
+        cur.execute("SELECT product_id, product_url FROM product ORDER BY product_id ASC;")
         products = cur.fetchall()
         print(f"Starting to update price for {len(products)} products...")
         count = 0
