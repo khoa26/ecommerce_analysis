@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import TimeoutException
 
 from _shared import create_all_tables, get_db_connection, setup_chrome_driver
 MAX_CATEGORIES = int(os.getenv("PRODUCT_CRAWL_MAX_CATEGORIES", "10"))
@@ -526,40 +527,132 @@ def repair_finished_categories(cur, conn, driver):
         else:
             print(f"Successfully crawled {missing_count} products for this category.")
 
+def get_detailed_coupons(driver):
+    extracted_coupons = []
+    
+    try:
+        arrow_xpath = "//div[contains(text(), 'Ưu đãi khác')]/following-sibling::div//img[@alt='right-icon']"
+        
+        arrow_btn = WebDriverWait(driver, 3).until(
+            EC.element_to_be_clickable((By.XPATH, arrow_xpath))
+        )
+        
+        driver.execute_script("arguments[0].click();", arrow_btn)
+        
+        WebDriverWait(driver, 3).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "coupon-item"))
+        )
+    except TimeoutException:
+        print("Timeout waiting for coupon popup to appear.")
+        return extracted_coupons
+    except Exception as e:
+        print(f"Error getting detailed coupons: {e}")
+        return extracted_coupons
+
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    
+    coupon_items = soup.find_all('div', class_='coupon-item')
+    
+    for item in coupon_items:
+        title_tag = item.find('h4')
+        title = title_tag.text.strip() if title_tag else "N/A"
+        
+        p_tags = item.find_all('p', class_='gdZzDE')
+        condition = p_tags[0].text.strip() if len(p_tags) > 0 else "N/A"
+        expiry = p_tags[1].text.strip() if len(p_tags) > 1 else "N/A"
+        
+        save_btn = item.find('button', attrs={'data-view-id': 'coupon_save_button'})
+        coupon_code = save_btn.get('data-view-label', 'N/A') if save_btn else "N/A"
+        
+        extracted_coupons.append({
+            'code': coupon_code,
+            'title': title,
+            'condition': condition,
+            'expiry': expiry
+        })
+
+    return extracted_coupons
+
 def get_current_price_only(driver, url, product_id):        
     try:
         driver.get(url)
+
         wait = WebDriverWait(driver, 8)
         html_content = driver.page_source
-        if "Trang bạn đang tìm kiếm không tồn tại" in html_content: return None
-        
+
+        if "Trang bạn đang tìm kiếm không tồn tại" in html_content: 
+            return None
+
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "product-price__current-price")))
+
+        html_content = driver.page_source
         soup = BeautifulSoup(html_content, 'html.parser')
+
+        tam_tinh_tag = soup.select_one('div.sc-31ecf63b-1.fgrIVW')
+        current_price = 0.0
+        if tam_tinh_tag:
+            price_text = re.sub(r'\D', '', tam_tinh_tag.get_text())
+            current_price = float(price_text) if price_text else 0.0
+
         disc_tag = soup.find('div', class_='product-price__discount-rate')
-
+        discount_percent = 0.0
         if disc_tag:
-            try:
-                wait.until(lambda d: 
-                    d.find_element(By.CLASS_NAME, "product-price__current-price").text != 
-                    d.find_element(By.CLASS_NAME, "product-price__original-price").text
-                )
-            except:
-                print(f"Timeout waiting for price update for {product_id}, using calculation logic.")
+            disc_match = re.search(r'\d+', disc_tag.get_text())
+            discount_percent = float(disc_match.group()) if disc_match else 0.0
 
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
-        
-        curr_tag = soup.find('div', class_='product-price__current-price')
-        current_price = float(re.sub(r'\D', '', curr_tag.get_text())) if curr_tag else 0.0
-        
         orig_tag = soup.find('div', class_='product-price__original-price')
-        original_price = float(re.sub(r'\D', '', orig_tag.get_text())) if orig_tag else current_price
+        original_price = 0.0
         
-        disc_match = re.search(r'\d+', disc_tag.get_text()) if disc_tag else None
-        discount_percent = float(disc_match.group()) if disc_match else 0.0
+        if orig_tag and re.sub(r'\D', '', orig_tag.get_text()):
+            original_price = float(re.sub(r'\D', '', orig_tag.get_text()))
+        
+        if discount_percent > 0:
+            main_curr_tag = soup.find('div', class_='product-price__current-price')
+            main_curr_val = float(re.sub(r'\D', '', main_curr_tag.get_text())) if main_curr_tag else 0.0
+            
+            if original_price == 0 or original_price <= current_price:
+                if main_curr_val > current_price:
+                    original_price = main_curr_val
+                else:
+                    original_price = round(current_price / (1 - (discount_percent / 100)), -3)
 
-        if discount_percent > 0 and original_price <= current_price:
-            current_price = round(original_price * (1 - (discount_percent / 100)), -3)
+        if current_price == 0:
+            print(f"Debug: Using traditional method to get current price.")
+            soup = BeautifulSoup(html_content, 'html.parser')
+            disc_tag = soup.find('div', class_='product-price__discount-rate')
 
-        coupons = [c.text for c in soup.find_all('div', class_='sc-14beda0e-0')]
+            if disc_tag:
+                try:
+                    wait.until(lambda d: 
+                        d.find_element(By.CLASS_NAME, "product-price__current-price").text != 
+                        d.find_element(By.CLASS_NAME, "product-price__original-price").text
+                    )
+                except:
+                    print(f"Timeout waiting for price update for {product_id}, using calculation logic.")
+
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
+            
+            curr_tag = soup.find('div', class_='product-price__current-price')
+            current_price = float(re.sub(r'\D', '', curr_tag.get_text())) if curr_tag else 0.0
+            
+            orig_tag = soup.find('div', class_='product-price__original-price')
+            original_price = float(re.sub(r'\D', '', orig_tag.get_text())) if orig_tag else current_price
+            
+            disc_match = re.search(r'\d+', disc_tag.get_text()) if disc_tag else None
+            discount_percent = float(disc_match.group()) if disc_match else 0.0
+
+            if discount_percent > 0 and original_price <= current_price:
+                current_price = round(original_price * (1 - (discount_percent / 100)), -3)
+
+        coupons_list = get_detailed_coupons(driver)
+
+        formatted_coupons = []
+        for c in coupons_list:
+            coupon_str = f"[{c['code']}] {c['title']} ({c['condition']} - {c['expiry']})"
+            formatted_coupons.append(coupon_str)
+            
+        coupon_string = ", ".join(formatted_coupons)
+
         service_items = soup.find_all('div', class_='sc-34e0efdc-3 jcYGog benefit-item')
         services = [item.find('div').text.strip() for item in service_items if item.find('div')]
 
@@ -569,13 +662,16 @@ def get_current_price_only(driver, url, product_id):
         combined_offer = f"{product_id}_{current_time_vn}"
         offer_id = hashlib.md5(combined_offer.encode()).hexdigest()[:10]
 
+        if original_price == 0:
+            original_price = current_price
+
         return {
             'offer_id': offer_id,
             'product_id': product_id,
             'current_price': current_price,
             'original_price': original_price,
             'discount_percent': discount_percent,
-            'coupon_available': ", ".join(coupons),
+            'coupon_available': coupon_string,
             'extra_services': ", ".join(services),
             'crawl_time': current_time_vn
         }
@@ -585,7 +681,7 @@ def get_current_price_only(driver, url, product_id):
 
 def update_price_offer(cur, conn, driver):
     try:
-        cur.execute("SELECT product_id, product_url FROM product ORDER BY product_id ASC;")
+        cur.execute("SELECT product_id, product_url FROM product ORDER BY product_id ASC LIMIT 85000;")
         products = cur.fetchall()
         print(f"Starting to update price for {len(products)} products...")
         count = 0
