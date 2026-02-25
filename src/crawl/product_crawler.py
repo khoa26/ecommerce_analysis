@@ -646,15 +646,8 @@ def get_current_price_only(driver, url, product_id):
 
         coupons_list = get_detailed_coupons(driver)
 
-        formatted_coupons = []
-        for c in coupons_list:
-            coupon_str = f"[{c['code']}] {c['title']} ({c['condition']} - {c['expiry']})"
-            formatted_coupons.append(coupon_str)
-            
-        coupon_string = ", ".join(formatted_coupons)
-
         service_items = soup.find_all('div', class_='sc-34e0efdc-3 jcYGog benefit-item')
-        services = [item.find('div').text.strip() for item in service_items if item.find('div')]
+        services_list = [item.find('div').text.strip() for item in service_items if item.find('div')]
 
         vn_tz = timezone(timedelta(hours=7))
         current_time_vn = datetime.now(vn_tz).isoformat()
@@ -671,8 +664,8 @@ def get_current_price_only(driver, url, product_id):
             'current_price': current_price,
             'original_price': original_price,
             'discount_percent': discount_percent,
-            'coupon_available': coupon_string,
-            'extra_services': ", ".join(services),
+            'coupon_available': coupons_list,
+            'extra_services': services_list,
             'crawl_time': current_time_vn
         }
     except Exception as e:
@@ -688,23 +681,58 @@ def update_price_offer(cur, conn, driver):
         for p_id, p_url in products:
             print("--------------------------------")
             print(f"[{count}] Updating: {p_id}")
-            price_data = get_current_price_only(driver, p_url, p_id)
-            print(price_data)
-            if price_data:
+            price_offer = get_current_price_only(driver, p_url, p_id)
+            if price_offer:
+                print(price_offer)
                 cur.execute(
                     """
-                    INSERT INTO price_offer (offer_id, product_id, current_price, original_price, discount_percent, coupon_available, extra_services, crawl_time)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO price_offer (offer_id, product_id, current_price, original_price, discount_percent, crawl_time)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT (offer_id) DO NOTHING;
                     """,
-                    (price_data['offer_id'], price_data['product_id'], price_data['current_price'], 
-                     price_data['original_price'], price_data['discount_percent'], 
-                     price_data['coupon_available'], price_data['extra_services'], price_data['crawl_time'])
+                    (price_offer['offer_id'], price_offer['product_id'], price_offer['current_price'], 
+                    price_offer['original_price'], price_offer['discount_percent'], price_offer['crawl_time'])
                 )
+
+                for cp in price_offer['coupon_available']:
+                    if cp['code'] == 'N/A' or not cp['code']: continue
+                    
+                    cur.execute(
+                        """
+                        INSERT INTO coupon (coupon_code, title, condition, expiry)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (coupon_code) DO UPDATE SET title = EXCLUDED.title
+                        RETURNING coupon_id;
+                        """,
+                        (cp['code'], cp['title'], cp['condition'], cp['expiry'])
+                    )
+                    coupon_id = cur.fetchone()[0]
+                    
+                    cur.execute(
+                        "INSERT INTO offer_coupon (offer_id, coupon_id) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
+                        (price_offer['offer_id'], coupon_id)
+                    )
+
+                for s_name in price_offer['extra_services']:
+                    if not s_name: continue
+                    
+                    cur.execute(
+                        """
+                        INSERT INTO service (service_name) VALUES (%s)
+                        ON CONFLICT (service_name) DO UPDATE SET service_name = EXCLUDED.service_name
+                        RETURNING service_id;
+                        """,
+                        (s_name,)
+                    )
+                    service_id = cur.fetchone()[0]
+                    
+                    cur.execute(
+                        "INSERT INTO offer_service (offer_id, service_id) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
+                        (price_offer['offer_id'], service_id)
+                    )
                 conn.commit()
-                print(f"Successfully saved new price: {price_data['current_price']}")
+                print(f"Successfully saved new price: {price_offer['current_price']}")
             
-            # time.sleep(0.5)
             count += 1
     except Exception as e:
         print(f"Error updating price offer: {e}")
@@ -817,7 +845,8 @@ def save_to_db(cur, conn, data):
 
     cur.execute(
         """
-        INSERT INTO product (product_id, product_name, short_description, category_id, seller_id, product_url, image_url, author_brand, sold_quantity, review_count, review_score)
+        INSERT INTO product (product_id, product_name, short_description, category_id, seller_id, 
+                           product_url, image_url, author_brand, sold_quantity, review_count, review_score)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (product_id) DO UPDATE SET 
             sold_quantity = EXCLUDED.sold_quantity,
@@ -833,13 +862,56 @@ def save_to_db(cur, conn, data):
 
     cur.execute(
         """
-        INSERT INTO price_offer (offer_id, product_id, current_price, original_price, discount_percent, coupon_available, extra_services, crawl_time)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO price_offer (offer_id, product_id, current_price, original_price, discount_percent, crawl_time)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON CONFLICT (offer_id) DO NOTHING;
         """,
         (price_offer['offer_id'], price_offer['product_id'], price_offer['current_price'], 
-        price_offer['original_price'], price_offer['discount_percent'], 
-        price_offer['coupon_available'], price_offer['extra_services'], price_offer['crawl_time'])
+        price_offer['original_price'], price_offer['discount_percent'], price_offer['crawl_time'])
     )
+
+    for cp in price_offer['coupon_available']:
+        if cp['code'] == 'N/A' or not cp['code']:
+            continue
+            
+        cur.execute(
+            """
+            INSERT INTO coupon (coupon_code, title, condition, expiry)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (coupon_code) DO UPDATE SET 
+                title = EXCLUDED.title,
+                condition = EXCLUDED.condition,
+                expiry = EXCLUDED.expiry
+            RETURNING coupon_id;
+            """,
+            (cp['code'], cp['title'], cp['condition'], cp['expiry'])
+        )
+        coupon_id = cur.fetchone()[0]
+        
+        cur.execute(
+            "INSERT INTO offer_coupon (offer_id, coupon_id) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
+            (price_offer['offer_id'], coupon_id)
+        )
+
+    for s_name in price_offer['extra_services']:
+        if not s_name:
+            continue
+            
+        cur.execute(
+            """
+            INSERT INTO service (service_name)
+            VALUES (%s)
+            ON CONFLICT (service_name) DO UPDATE SET service_name = EXCLUDED.service_name
+            RETURNING service_id;
+            """,
+            (s_name,)
+        )
+        service_id = cur.fetchone()[0]
+        
+        cur.execute(
+            "INSERT INTO offer_service (offer_id, service_id) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
+            (price_offer['offer_id'], service_id)
+        )
 
     for reviewer in reviewers:
         cur.execute(
@@ -868,6 +940,7 @@ def save_to_db(cur, conn, data):
             review['rating_score'], review['review_content'], review['thank_count'], 
             review['review_time'], review['usage_duration'])
         )
+        
     conn.commit()
 
 def main():
