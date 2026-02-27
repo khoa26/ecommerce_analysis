@@ -578,7 +578,7 @@ def get_current_price_only(driver, url, product_id):
     try:
         driver.get(url)
 
-        wait = WebDriverWait(driver, 8)
+        wait = WebDriverWait(driver, 5)
         html_content = driver.page_source
 
         if "Trang bạn đang tìm kiếm không tồn tại" in html_content: 
@@ -588,6 +588,29 @@ def get_current_price_only(driver, url, product_id):
 
         html_content = driver.page_source
         soup = BeautifulSoup(html_content, 'html.parser')
+
+        is_out_of_stock = "Sản phẩm đã hết hàng" in html_content
+        is_coming_soon = "Sản phẩm sắp có hàng" in html_content
+
+        vn_tz = timezone(timedelta(hours=7))
+        current_time_vn = datetime.now(vn_tz).isoformat()
+
+        combined_offer = f"{product_id}_{current_time_vn}"
+        offer_id = hashlib.md5(combined_offer.encode()).hexdigest()[:10]
+
+        if is_out_of_stock or is_coming_soon:
+            curr_tag = soup.find('div', class_='product-price__current-price')
+            current_price = float(re.sub(r'\D', '', curr_tag.get_text())) if curr_tag else 0.0
+            return {
+                'offer_id': offer_id,
+                'product_id': product_id,
+                'current_price': current_price,
+                'original_price': current_price,
+                'discount_percent': 0.0,
+                'coupon_available': [],
+                'extra_services': [],
+                'crawl_time': current_time_vn
+            }
 
         tam_tinh_tag = soup.select_one('div.sc-31ecf63b-1.fgrIVW')
         current_price = 0.0
@@ -645,19 +668,13 @@ def get_current_price_only(driver, url, product_id):
             if discount_percent > 0 and original_price <= current_price:
                 current_price = round(original_price * (1 - (discount_percent / 100)), -3)
 
+        if original_price == 0:
+            original_price = current_price
+
         coupons_list = get_detailed_coupons(driver)
 
         service_items = soup.find_all('div', class_='sc-34e0efdc-3 jcYGog benefit-item')
         services_list = [item.find('div').text.strip() for item in service_items if item.find('div')]
-
-        vn_tz = timezone(timedelta(hours=7))
-        current_time_vn = datetime.now(vn_tz).isoformat()
-        
-        combined_offer = f"{product_id}_{current_time_vn}"
-        offer_id = hashlib.md5(combined_offer.encode()).hexdigest()[:10]
-
-        if original_price == 0:
-            original_price = current_price
 
         return {
             'offer_id': offer_id,
