@@ -42,7 +42,7 @@ jobs:
         env:
           DB_USER: ${{ secrets.DB_USER }}
           PASSWORD: ${{ secrets.PASSWORD }}
-          HOST: ${{ secrets.DB_HOST }}
+          HOST: ${{ secrets.HOST }}
           DATABASE: ${{ secrets.DATABASE }}
           PORT: ${{ secrets.PORT }}
         run: |
