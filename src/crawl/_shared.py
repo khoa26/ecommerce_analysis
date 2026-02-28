@@ -16,6 +16,11 @@ HOST = os.getenv("host")
 PORT = os.getenv("port")
 DBNAME = os.getenv("dbname")
 
+# USER = os.getenv("DB_USER")
+# PASSWORD = os.getenv("PASSWORD")
+# HOST = os.getenv("HOST")
+# PORT = os.getenv("DATABASE")
+# DBNAME = os.getenv("PORT")
 
 def get_db_connection(autocommit=True):
     conn = psycopg2.connect(
