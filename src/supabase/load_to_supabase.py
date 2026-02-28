@@ -24,21 +24,31 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 BATCH_SIZE = int(os.getenv("UPLOAD_BATCH_SIZE", "1000"))
 
+# Sắp xếp đúng thứ tự Foreign Key (Cha đẩy trước, Con đẩy sau)
 TABLE_ORDER = [
-    "category",   # category_id, category_name, category_url, parent_category_id, level, category_path, is_scanned
-    "seller",     # seller_id, seller_name, seller_rating, total_reviews
-    "reviewer",   # reviewer_id, reviewer_name, reviewer_seniority, reviewer_contributions, reviewer_received_thanks
-    "product",    # product_id, product_name, short_description, category_id, seller_id, product_url, image_url, author_brand, sold_quantity, review_score, review_count
-    "price_offer",# offer_id, product_id, current_price, original_price, discount_percent, coupon_available, extra_services, crawl_time
-    "review",     # review_id, product_id, reviewer_id, rating_score, review_content, thank_count, review_time, usage_duration
+    "category",      # Độc lập (tự tham chiếu)
+    "seller",        # Độc lập
+    "service",       # Độc lập
+    "coupon",        # Độc lập
+    "reviewer",      # Độc lập
+    "product",       # Phụ thuộc category, seller
+    "price_offer",   # Phụ thuộc product
+    "offer_service", # Phụ thuộc price_offer, service
+    "offer_coupon",  # Phụ thuộc price_offer, coupon
+    "review",        # Phụ thuộc product, reviewer
 ]
 
+# Định nghĩa Primary Keys (bao gồm cả Composite Keys cho bảng trung gian)
 PRIMARY_KEYS = {
     "category": "category_id",
     "seller": "seller_id",
+    "service": "service_id",
+    "coupon": "coupon_id",
     "reviewer": "reviewer_id",
     "product": "product_id",
     "price_offer": "offer_id",
+    "offer_service": "offer_id,service_id", # Composite key cho Upsert Supabase
+    "offer_coupon": "offer_id,coupon_id",   # Composite key cho Upsert Supabase
     "review": "review_id",
 }
 
@@ -51,14 +61,12 @@ def get_postgres_connection():
         port=DB_PORT,
     )
 
-
 def get_supabase_client() -> Client:
     if not SUPABASE_URL or not SUPABASE_KEY:
         raise ValueError(
             "SUPABASE_URL and SUPABASE_KEY must be configured in the .env file"
         )
     return create_client(SUPABASE_URL, SUPABASE_KEY)
-
 
 def read_table_from_postgres(conn, table_name: str) -> pd.DataFrame:
     if table_name == "category":
@@ -68,7 +76,6 @@ def read_table_from_postgres(conn, table_name: str) -> pd.DataFrame:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         return pd.read_sql_query(query, conn)
-
 
 def _to_json_serializable(value: Any) -> Any:
     """Convert pandas Timestamp / datetime to ISO string for JSON."""
@@ -80,7 +87,6 @@ def _to_json_serializable(value: Any) -> Any:
         return value.isoformat()
     return value
 
-
 def convert_dataframe_to_dict(df: pd.DataFrame) -> List[Dict[str, Any]]:
     df = df.where(pd.notnull(df), None)
     rows = df.to_dict("records")
@@ -89,7 +95,6 @@ def convert_dataframe_to_dict(df: pd.DataFrame) -> List[Dict[str, Any]]:
         for row in rows
     ]
 
-
 def _clear_supabase_table(supabase: Client, table_name: str) -> None:
     pk = PRIMARY_KEYS.get(table_name)
     if not pk:
@@ -97,10 +102,10 @@ def _clear_supabase_table(supabase: Client, table_name: str) -> None:
         return
     print(f"  Clearing existing data from '{table_name}'...")
     try:
-        supabase.table(table_name).delete().neq(pk, "").execute()
+        first_pk_col = pk.split(",")[0]
+        supabase.table(table_name).delete().neq(first_pk_col, "DELETE_ALL_DUMMY_MATCH").execute()
     except Exception as e:
         print(f"    Warning: could not clear table: {e}")
-
 
 def upload_table_batch(
     supabase: Client,
@@ -144,14 +149,13 @@ def upload_table_batch(
                     success_count += 1
                     error_count -= 1
                 except Exception as record_error:
-                    rid = record.get(pk_column, record.get('id', 'unknown'))
+                    rid = record.get(pk_column.split(",")[0], record.get('id', 'unknown'))
                     print(f"      Failed record: {rid} - {str(record_error)}")
         
         if i + batch_size < total_records:
             time.sleep(0.1)
     
     return success_count, error_count
-
 
 def upload_table(
     supabase: Client,
@@ -176,7 +180,6 @@ def upload_table(
     except Exception as e:
         print(f"  ✗ Error uploading '{table_name}': {str(e)}")
         return False
-
 
 def upload_all_tables(
     clear_existing: bool = False,
@@ -250,7 +253,6 @@ def upload_all_tables(
     
     return results
 
-
 def main():
     import argparse
     
@@ -275,7 +277,6 @@ def main():
         clear_existing=args.clear,
         tables_order=args.tables
     )
-
 
 if __name__ == "__main__":
     main()
