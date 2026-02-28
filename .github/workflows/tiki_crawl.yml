@@ -1,6 +1,9 @@
 name: Tiki Price Crawler
 
 on:
+  push:
+    branches:
+      - action
   schedule:
     - cron: '0 17 * * *'
   workflow_dispatch:
@@ -17,6 +20,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'schedule' && 'action' || github.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
