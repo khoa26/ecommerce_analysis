@@ -11,7 +11,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 
 from _shared import create_all_tables, get_db_connection, setup_chrome_driver
-MAX_CATEGORIES = int(os.getenv("PRODUCT_CRAWL_MAX_CATEGORIES", "10"))
 
 def click_see_more(driver, timeout=10):
     try:
