@@ -7,23 +7,23 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
-load_dotenv() 
+_env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+load_dotenv(dotenv_path=_env_path)
+
+USER = os.getenv("user")
+PASSWORD = os.getenv("password")
+HOST = os.getenv("host")
+PORT = os.getenv("port")
+DBNAME = os.getenv("dbname")
+
 
 def get_db_connection(autocommit=True):
-    db_user = "postgres"
-    db_password = "75779905"
-    db_host = "fb7whjyaz.localto.net"
-    db_name = "tiki"
-    db_port = "4743"
-
-    print(f"DEBUG: Host={db_host}, Port={db_port}, User={db_user}")
-
     conn = psycopg2.connect(
-        user=db_user,
-        password=db_password,
-        host=db_host,
-        port=db_port,
-        database=db_name
+        user=USER,
+        database=DBNAME,
+        password=PASSWORD,
+        host=HOST,
+        port=PORT,
     )
     conn.autocommit = autocommit
     return conn
@@ -39,8 +39,8 @@ def setup_chrome_driver():
     options.add_argument(f"user-agent={desktop_ua}")
     options.add_argument("--ignore-certificate-errors")
     options.add_argument("--incognito")
-    options.add_argument("--headless=new")
     options.add_argument("no-sandbox")
+    options.add_argument("window-size=1920,1080")
     options.add_argument("--disable-gpu")
     options.add_argument("--disable-software-rasterizer")
     options.add_argument("--disable-dev-shm-usage")
