@@ -4,6 +4,8 @@ import time
 import uuid
 from datetime import datetime, timezone, timedelta
 import hashlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from bs4 import BeautifulSoup
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -690,15 +692,23 @@ def get_current_price_only(driver, url, product_id):
         print(f"Error getting current price for {product_id}: {e}")
         return None
 
-def update_price_offer(cur, conn, driver):
+def _update_price_offer_batch(products, worker_id: int):
+    """
+    Xử lý cập nhật price_offer cho một batch sản phẩm trên 1 thread riêng.
+    Mỗi thread dùng connection và Chrome driver riêng để tránh xung đột.
+    """
+    if not products:
+        return
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    driver = setup_chrome_driver()
+
     try:
-        cur.execute("SELECT product_id, product_url FROM product ORDER BY product_id ASC;")
-        products = cur.fetchall()
-        print(f"Starting to update price for {len(products)} products...")
         count = 0
         for p_id, p_url in products:
             print("--------------------------------")
-            print(f"[{count}] Updating: {p_id}")
+            print(f"[worker {worker_id} - {count}] Updating: {p_id}")
             price_offer = get_current_price_only(driver, p_url, p_id)
             if price_offer:
                 print(price_offer)
@@ -708,13 +718,20 @@ def update_price_offer(cur, conn, driver):
                     VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT (offer_id) DO NOTHING;
                     """,
-                    (price_offer['offer_id'], price_offer['product_id'], price_offer['current_price'], 
-                    price_offer['original_price'], price_offer['discount_percent'], price_offer['crawl_time'])
+                    (
+                        price_offer["offer_id"],
+                        price_offer["product_id"],
+                        price_offer["current_price"],
+                        price_offer["original_price"],
+                        price_offer["discount_percent"],
+                        price_offer["crawl_time"],
+                    ),
                 )
 
-                for cp in price_offer['coupon_available']:
-                    if cp['code'] == 'N/A' or not cp['code']: continue
-                    
+                for cp in price_offer["coupon_available"]:
+                    if cp["code"] == "N/A" or not cp["code"]:
+                        continue
+
                     cur.execute(
                         """
                         INSERT INTO coupon (coupon_code, title, condition, expiry)
@@ -722,36 +739,83 @@ def update_price_offer(cur, conn, driver):
                         ON CONFLICT (coupon_code) DO UPDATE SET title = EXCLUDED.title
                         RETURNING coupon_id;
                         """,
-                        (cp['code'], cp['title'], cp['condition'], cp['expiry'])
+                        (cp["code"], cp["title"], cp["condition"], cp["expiry"]),
                     )
                     coupon_id = cur.fetchone()[0]
-                    
+
                     cur.execute(
                         "INSERT INTO offer_coupon (offer_id, coupon_id) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
-                        (price_offer['offer_id'], coupon_id)
+                        (price_offer["offer_id"], coupon_id),
                     )
 
-                for s_name in price_offer['extra_services']:
-                    if not s_name: continue
-                    
+                for s_name in price_offer["extra_services"]:
+                    if not s_name:
+                        continue
+
                     cur.execute(
                         """
                         INSERT INTO service (service_name) VALUES (%s)
                         ON CONFLICT (service_name) DO UPDATE SET service_name = EXCLUDED.service_name
                         RETURNING service_id;
                         """,
-                        (s_name,)
+                        (s_name,),
                     )
                     service_id = cur.fetchone()[0]
-                    
+
                     cur.execute(
                         "INSERT INTO offer_service (offer_id, service_id) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
-                        (price_offer['offer_id'], service_id)
+                        (price_offer["offer_id"], service_id),
                     )
+
                 conn.commit()
-                print(f"Successfully saved new price: {price_offer['current_price']}")
-            
+                print(f"[worker {worker_id}] Successfully saved new price: {price_offer['current_price']}")
+
             count += 1
+
+        print(f"[worker {worker_id}] Finished {count} products")
+    except Exception as e:
+        print(f"[worker {worker_id}] Error updating price offer batch: {e}")
+    finally:
+        try:
+            driver.quit()
+        except Exception:
+            pass
+        cur.close()
+        conn.close()
+
+
+def update_price_offer(cur, conn, driver=None):
+    try:
+        cur.execute("SELECT product_id, product_url FROM product ORDER BY product_id ASC;")
+        products = cur.fetchall()
+        total = len(products)
+        print(f"Starting to update price for {total} products...")
+
+        if total == 0:
+            return
+
+        max_workers = 5
+        batch_size = 100
+
+        batches = [
+            products[i : i + batch_size] for i in range(0, total, batch_size)
+        ]
+
+        print(
+            f"Running price update with {max_workers} threads, "
+            f"{len(batches)} batches, batch_size={batch_size}"
+        )
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = []
+            for idx, batch in enumerate(batches):
+                futures.append(executor.submit(_update_price_offer_batch, batch, idx))
+
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"Error in price update worker: {e}")
     except Exception as e:
         print(f"Error updating price offer: {e}")
 
@@ -966,8 +1030,6 @@ def main():
     cur = conn.cursor()
     create_all_tables(cur)
 
-    driver = setup_chrome_driver()
-
     try:
         # crawl_base_product(cur, conn, driver)
 
@@ -975,9 +1037,8 @@ def main():
         
         # repair_finished_categories(cur, conn, driver)
 
-        update_price_offer(cur, conn, driver)
+        update_price_offer(cur, conn)
     finally:
-        driver.quit()
         cur.close()
         conn.close()
 
