@@ -10,14 +10,12 @@ from selenium.webdriver.chrome.service import Service
 load_dotenv() 
 
 def get_db_connection(autocommit=True):
-    # Sử dụng os.environ.get để lấy trực tiếp từ GitHub Actions
-    db_user = os.environ.get("DB_USER")
-    db_password = os.environ.get("PASSWORD")
-    db_host = os.environ.get("HOST")
-    db_name = os.environ.get("DATABASE")
-    db_port = os.environ.get("PORT")
+    db_user = os.getenv("DB_USER")
+    db_password = os.getenv("PASSWORD")
+    db_host = os.getenv("HOST")
+    db_name = os.getenv("DATABASE")
+    db_port = os.getenv("PORT")
 
-    # In ra để debug xem biến có bị rỗng không (Xóa sau khi test xong)
     print(f"DEBUG: Host={db_host}, Port={db_port}, User={db_user}")
 
     conn = psycopg2.connect(
