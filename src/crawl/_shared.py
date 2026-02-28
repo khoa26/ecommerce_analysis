@@ -7,23 +7,25 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
-_env_path = Path(__file__).resolve().parent.parent.parent / ".env"
-load_dotenv(dotenv_path=_env_path)
-
-DB_USER = os.getenv("DB_USER")
-PASSWORD = os.getenv("PASSWORD")
-HOST = os.getenv("HOST")
-DATABASE = os.getenv("DATABASE")
-PORT = os.getenv("PORT")
-
+load_dotenv() 
 
 def get_db_connection(autocommit=True):
+    # Sử dụng os.environ.get để lấy trực tiếp từ GitHub Actions
+    db_user = os.environ.get("DB_USER")
+    db_password = os.environ.get("PASSWORD")
+    db_host = os.environ.get("HOST")
+    db_name = os.environ.get("DATABASE")
+    db_port = os.environ.get("PORT")
+
+    # In ra để debug xem biến có bị rỗng không (Xóa sau khi test xong)
+    print(f"DEBUG: Host={db_host}, Port={db_port}, User={db_user}")
+
     conn = psycopg2.connect(
-        user=DB_USER,
-        database=DATABASE,
-        password=PASSWORD,
-        host=HOST,
-        port=PORT,
+        user=db_user,
+        password=db_password,
+        host=db_host,
+        port=db_port,
+        database=db_name
     )
     conn.autocommit = autocommit
     return conn
