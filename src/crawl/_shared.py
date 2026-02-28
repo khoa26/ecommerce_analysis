@@ -14,7 +14,7 @@ def get_db_connection(autocommit=True):
     db_password = "75779905"
     db_host = "fb7whjyaz.localto.net"
     db_name = "tiki"
-    db_port = "8664"
+    db_port = "4743"
 
     print(f"DEBUG: Host={db_host}, Port={db_port}, User={db_user}")
 
