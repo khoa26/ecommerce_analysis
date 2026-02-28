@@ -10,11 +10,11 @@ from selenium.webdriver.chrome.service import Service
 load_dotenv() 
 
 def get_db_connection(autocommit=True):
-    db_user = os.getenv("DB_USER")
-    db_password = os.getenv("PASSWORD")
-    db_host = os.getenv("HOST")
-    db_name = os.getenv("DATABASE")
-    db_port = os.getenv("PORT")
+    db_user = "postgres"
+    db_password = "75779905"
+    db_host = "fb7whjyaz.localto.net"
+    db_name = "tiki"
+    db_port = "2862"
 
     print(f"DEBUG: Host={db_host}, Port={db_port}, User={db_user}")
 
