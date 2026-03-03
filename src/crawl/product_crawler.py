@@ -758,7 +758,7 @@ def update_price_offer(cur, conn, driver):
                     if price_offer:
                         print(price_offer)
                         save_price_offer_to_db(cur, price_offer)
-                        if count % 50 == 0 and count > 0:
+                        if count % 10 == 0 and count > 0:
                             conn.commit()
                             print(f"Batch committed at {count}")
                     break
