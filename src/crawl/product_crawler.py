@@ -9,6 +9,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException
+from psycopg2 import OperationalError, InterfaceError
 
 from _shared import create_all_tables, get_db_connection, setup_chrome_driver
 
@@ -689,68 +690,88 @@ def get_current_price_only(driver, url, product_id):
         print(f"Error getting current price for {product_id}: {e}")
         return None
 
+def save_price_offer_to_db(cur, price_offer):
+
+    cur.execute(
+        """
+        INSERT INTO price_offer (offer_id, product_id, current_price, original_price, discount_percent, crawl_time)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON CONFLICT (offer_id) DO NOTHING;
+        """,
+        (price_offer['offer_id'], price_offer['product_id'], price_offer['current_price'], 
+        price_offer['original_price'], price_offer['discount_percent'], price_offer['crawl_time'])
+    )
+
+    for cp in price_offer['coupon_available']:
+        if cp['code'] == 'N/A' or not cp['code']: 
+            continue
+        
+        cur.execute(
+            """
+            INSERT INTO coupon (coupon_code, title, condition, expiry)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (coupon_code) DO UPDATE SET title = EXCLUDED.title
+            RETURNING coupon_id;
+            """,
+            (cp['code'], cp['title'], cp['condition'], cp['expiry'])
+        )
+        coupon_id = cur.fetchone()[0]
+        
+        cur.execute(
+            "INSERT INTO offer_coupon (offer_id, coupon_id) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
+            (price_offer['offer_id'], coupon_id)
+        )
+
+    for s_name in price_offer['extra_services']:
+        if not s_name: 
+            continue
+        
+        cur.execute(
+            """
+            INSERT INTO service (service_name) VALUES (%s)
+            ON CONFLICT (service_name) DO UPDATE SET service_name = EXCLUDED.service_name
+            RETURNING service_id;
+            """,
+            (s_name,)
+        )
+        service_id = cur.fetchone()[0]
+        
+        cur.execute(
+            "INSERT INTO offer_service (offer_id, service_id) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
+            (price_offer['offer_id'], service_id)
+        )
+    
+    print(f"Successfully saved new price")
+
 def update_price_offer(cur, conn, driver):
     try:
-        cur.execute("SELECT product_id, product_url FROM product ORDER BY product_id DESC;")
+        cur.execute("SELECT product_id, product_url FROM product ORDER BY product_id ASC;")
         products = cur.fetchall()
         print(f"Starting to update price for {len(products)} products...")
         count = 0
         for p_id, p_url in products:
             print("--------------------------------")
             print(f"[{count}] Updating: {p_id}")
-            price_offer = get_current_price_only(driver, p_url, p_id)
-            if price_offer:
-                print(price_offer)
-                cur.execute(
-                    """
-                    INSERT INTO price_offer (offer_id, product_id, current_price, original_price, discount_percent, crawl_time)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (offer_id) DO NOTHING;
-                    """,
-                    (price_offer['offer_id'], price_offer['product_id'], price_offer['current_price'], 
-                    price_offer['original_price'], price_offer['discount_percent'], price_offer['crawl_time'])
-                )
-
-                for cp in price_offer['coupon_available']:
-                    if cp['code'] == 'N/A' or not cp['code']: continue
-                    
-                    cur.execute(
-                        """
-                        INSERT INTO coupon (coupon_code, title, condition, expiry)
-                        VALUES (%s, %s, %s, %s)
-                        ON CONFLICT (coupon_code) DO UPDATE SET title = EXCLUDED.title
-                        RETURNING coupon_id;
-                        """,
-                        (cp['code'], cp['title'], cp['condition'], cp['expiry'])
-                    )
-                    coupon_id = cur.fetchone()[0]
-                    
-                    cur.execute(
-                        "INSERT INTO offer_coupon (offer_id, coupon_id) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
-                        (price_offer['offer_id'], coupon_id)
-                    )
-
-                for s_name in price_offer['extra_services']:
-                    if not s_name: continue
-                    
-                    cur.execute(
-                        """
-                        INSERT INTO service (service_name) VALUES (%s)
-                        ON CONFLICT (service_name) DO UPDATE SET service_name = EXCLUDED.service_name
-                        RETURNING service_id;
-                        """,
-                        (s_name,)
-                    )
-                    service_id = cur.fetchone()[0]
-                    
-                    cur.execute(
-                        "INSERT INTO offer_service (offer_id, service_id) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
-                        (price_offer['offer_id'], service_id)
-                    )
-                conn.commit()
-                print(f"Successfully saved new price: {price_offer['current_price']}")
-            
+            for _ in range(3):
+                try:
+                    price_offer = get_current_price_only(driver, p_url, p_id)
+                    if price_offer:
+                        print(price_offer)
+                        save_price_offer_to_db(cur, price_offer)
+                        if count % 50 == 0 and count > 0:
+                            conn.commit()
+                            print(f"Batch committed at {count}")
+                    break
+                except (OperationalError, InterfaceError) as db_err:
+                    print(f"Lost connection to database: {db_err}. Reconnecting...")
+                    time.sleep(2)
+                    conn = get_db_connection()
+                    cur = conn.cursor()
+                except Exception as e:
+                    print(f"Error at {p_id}: {e}")
+                    break
             count += 1
+        conn.commit()
     except Exception as e:
         print(f"Error updating price offer: {e}")
 
