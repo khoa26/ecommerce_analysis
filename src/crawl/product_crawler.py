@@ -671,7 +671,8 @@ def get_current_price_only(driver, url, product_id):
         if original_price == 0:
             original_price = current_price
 
-        coupons_list = get_detailed_coupons(driver)
+        coupons_list = []
+        # coupons_list = get_detailed_coupons(driver)
 
         service_items = soup.find_all('div', class_='sc-34e0efdc-3 jcYGog benefit-item')
         services_list = [item.find('div').text.strip() for item in service_items if item.find('div')]
