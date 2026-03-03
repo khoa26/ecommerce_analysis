@@ -45,11 +45,11 @@ jobs:
 
       - name: Run Crawler
         env:
-          DB_USER: ${{ secrets.DB_USER }}
-          PASSWORD: ${{ secrets.PASSWORD }}
-          HOST: ${{ secrets.HOST }}
-          DATABASE: ${{ secrets.DATABASE }}
-          PORT: ${{ secrets.PORT }}
+          USER: ${{ secrets.user }}
+          PASSWORD: ${{ secrets.password }}
+          HOST: ${{ secrets.host }}
+          DBNAME: ${{ secrets.dbname }}
+          PORT: ${{ secrets.port }}
         run: |
           google-chrome --version
           xvfb-run -a python src/crawl/product_crawler.py
