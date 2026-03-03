@@ -746,7 +746,7 @@ def save_price_offer_to_db(cur, price_offer):
 
 def update_price_offer(cur, conn, driver):
     try:
-        cur.execute("SELECT product_id, product_url FROM product ORDER BY product_id ASC;")
+        cur.execute("SELECT product_id, product_url FROM product ORDER BY product_id DESC;")
         products = cur.fetchall()
         print(f"Starting to update price for {len(products)} products...")
         count = 0
