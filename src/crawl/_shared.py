@@ -10,17 +10,22 @@ from selenium.webdriver.chrome.service import Service
 _env_path = Path(__file__).resolve().parent.parent.parent / ".env"
 load_dotenv(dotenv_path=_env_path)
 
-DB_USER = os.getenv("DB_USER")
-PASSWORD = os.getenv("PASSWORD")
-HOST = os.getenv("HOST")
-DATABASE = os.getenv("DATABASE")
-PORT = os.getenv("PORT")
+# USER = os.getenv("USER")
+# PASSWORD = os.getenv("PASSWORD")
+# HOST = os.getenv("HOST")
+# DBNAME = os.getenv("DBNAME")
+# PORT = os.getenv("PORT")
 
+USER = os.getenv("user", "postgres.vweazunxxfnptkokchyi")
+PASSWORD = os.getenv("password", "iDgC1yIsxisIS6Lk")
+HOST = os.getenv("host", "aws-1-ap-southeast-2.pooler.supabase.com")
+PORT = os.getenv("port", "6543")
+DBNAME = os.getenv("dbname", "postgres")
 
 def get_db_connection(autocommit=True):
     conn = psycopg2.connect(
-        user=DB_USER,
-        database=DATABASE,
+        user=USER,
+        database=DBNAME,
         password=PASSWORD,
         host=HOST,
         port=PORT,
