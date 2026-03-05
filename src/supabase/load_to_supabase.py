@@ -13,11 +13,11 @@ from supabase import create_client, Client
 env_path = Path(__file__).resolve().parent.parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("PASSWORD")
-DB_HOST = os.getenv("HOST")
-DB_DATABASE = os.getenv("DATABASE")
-DB_PORT = os.getenv("PORT")
+USER = os.getenv("USER")
+PASSWORD = os.getenv("PASSWORD")
+HOST = os.getenv("HOST")
+DBNAME = os.getenv("DBNAME")
+PORT = os.getenv("PORT")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -54,11 +54,11 @@ PRIMARY_KEYS = {
 
 def get_postgres_connection():
     return psycopg2.connect(
-        user=DB_USER,
-        database=DB_DATABASE,
-        password=DB_PASSWORD,
-        host=DB_HOST,
-        port=DB_PORT,
+        user=USER,
+        database=DBNAME,
+        password=PASSWORD,
+        host=HOST,
+        port=PORT,
     )
 
 def get_supabase_client() -> Client:
