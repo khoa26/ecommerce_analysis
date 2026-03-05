@@ -7,66 +7,8 @@ from typing import Any, Dict, List
 
 import pandas as pd
 import psycopg2
-from dotenv import load_dotenv
 from supabase import create_client, Client
-
-env_path = Path(__file__).resolve().parent.parent.parent / ".env"
-load_dotenv(dotenv_path=env_path)
-
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("PASSWORD")
-DB_HOST = os.getenv("HOST")
-DB_DATABASE = os.getenv("DATABASE")
-DB_PORT = os.getenv("PORT")
-
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-
-BATCH_SIZE = int(os.getenv("UPLOAD_BATCH_SIZE", "1000"))
-
-# Sắp xếp đúng thứ tự Foreign Key (Cha đẩy trước, Con đẩy sau)
-TABLE_ORDER = [
-    "category",      # Độc lập (tự tham chiếu)
-    "seller",        # Độc lập
-    "service",       # Độc lập
-    "coupon",        # Độc lập
-    "reviewer",      # Độc lập
-    "product",       # Phụ thuộc category, seller
-    "price_offer",   # Phụ thuộc product
-    "offer_service", # Phụ thuộc price_offer, service
-    "offer_coupon",  # Phụ thuộc price_offer, coupon
-    "review",        # Phụ thuộc product, reviewer
-]
-
-# Định nghĩa Primary Keys (bao gồm cả Composite Keys cho bảng trung gian)
-PRIMARY_KEYS = {
-    "category": "category_id",
-    "seller": "seller_id",
-    "service": "service_id",
-    "coupon": "coupon_id",
-    "reviewer": "reviewer_id",
-    "product": "product_id",
-    "price_offer": "offer_id",
-    "offer_service": "offer_id,service_id", # Composite key cho Upsert Supabase
-    "offer_coupon": "offer_id,coupon_id",   # Composite key cho Upsert Supabase
-    "review": "review_id",
-}
-
-def get_postgres_connection():
-    return psycopg2.connect(
-        user=DB_USER,
-        database=DB_DATABASE,
-        password=DB_PASSWORD,
-        host=DB_HOST,
-        port=DB_PORT,
-    )
-
-def get_supabase_client() -> Client:
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        raise ValueError(
-            "SUPABASE_URL and SUPABASE_KEY must be configured in the .env file"
-        )
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+from _shared import get_postgres_connection, PRIMARY_KEYS, TABLE_ORDER, get_supabase_client, BATCH_SIZE
 
 def read_table_from_postgres(conn, table_name: str) -> pd.DataFrame:
     if table_name == "category":
