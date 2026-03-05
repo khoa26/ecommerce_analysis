@@ -48,14 +48,36 @@ CREATE TABLE price_offer (
     current_price    FLOAT,
     original_price   FLOAT,
     discount_percent FLOAT,
-    coupon_available TEXT,
-    extra_services   TEXT,
     crawl_time       TIMESTAMP,
-
-    CONSTRAINT fk_offer_product
-        FOREIGN KEY (product_id)
-        REFERENCES product(product_id)
+    CONSTRAINT fk_offer_product 
+        FOREIGN KEY (product_id) 
+        REFERENCES product(product_id) 
         ON DELETE CASCADE
+);
+
+CREATE TABLE service (
+    service_id   SERIAL PRIMARY KEY,
+    service_name TEXT UNIQUE NOT NULL
+);
+
+CREATE TABLE coupon (
+    coupon_id   SERIAL PRIMARY KEY,
+    coupon_code VARCHAR(100) UNIQUE,
+    title       TEXT,
+    condition   TEXT,
+    expiry      TEXT
+);
+
+CREATE TABLE offer_service (
+    offer_id   VARCHAR(50) REFERENCES price_offer(offer_id) ON DELETE CASCADE,
+    service_id INT REFERENCES service(service_id) ON DELETE CASCADE,
+    PRIMARY KEY (offer_id, service_id)
+);
+
+CREATE TABLE offer_coupon (
+    offer_id  VARCHAR(50) REFERENCES price_offer(offer_id) ON DELETE CASCADE,
+    coupon_id INT REFERENCES coupon(coupon_id) ON DELETE CASCADE,
+    PRIMARY KEY (offer_id, coupon_id)
 );
 
 CREATE TABLE reviewer (
