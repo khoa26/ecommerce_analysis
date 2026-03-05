@@ -746,18 +746,7 @@ def save_price_offer_to_db(cur, price_offer):
 
 def update_price_offer(cur, conn, driver):
     try:
-        query = """
-            SELECT p.product_id, p.product_url
-            FROM product p
-            LEFT JOIN (
-                SELECT product_id, MAX(crawl_time) as last_update
-                FROM price_offer
-                GROUP BY product_id
-            ) po ON p.product_id = po.product_id
-            ORDER BY po.last_update ASC NULLS FIRST;
-        """
-
-        # query = "SELECT product_id, product_url FROM product ORDER BY product_id DESC;"
+        query = "SELECT product_id, product_url FROM product ORDER BY product_id DESC;"
         cur.execute(query)
         products = cur.fetchall()
         print(f"Starting to update price for {len(products)} products...")
