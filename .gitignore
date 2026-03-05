@@ -4,3 +4,4 @@ __pycache__/
 finished_categories.txt
 venv/
 .vscode/
+team_csv_data/
