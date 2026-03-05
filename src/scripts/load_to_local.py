@@ -7,59 +7,7 @@ import psycopg2
 from psycopg2.extras import execute_values
 from dotenv import load_dotenv
 from supabase import create_client, Client
-
-env_path = Path(__file__).resolve().parent.parent.parent / ".env"
-load_dotenv(dotenv_path=env_path)
-
-USER = os.getenv("USER")
-PASSWORD = os.getenv("PASSWORD")
-HOST = os.getenv("HOST")
-DBNAME = os.getenv("DBNAME")
-PORT = os.getenv("PORT")
-
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-
-
-TABLE_ORDER = [
-    "category",      
-    "seller",        
-    "service",       
-    "coupon",        
-    "reviewer",      
-    "product",       
-    "price_offer",   
-    "offer_service", 
-    "offer_coupon",  
-    "review",        
-]
-
-PRIMARY_KEYS = {
-    "category": "category_id",
-    "seller": "seller_id",
-    "service": "service_id",
-    "coupon": "coupon_id",
-    "reviewer": "reviewer_id",
-    "product": "product_id",
-    "price_offer": "offer_id",
-    "offer_service": "offer_id,service_id", 
-    "offer_coupon": "offer_id,coupon_id",   
-    "review": "review_id",
-}
-
-def get_postgres_connection():
-    return psycopg2.connect(
-        user=USER,
-        database=DBNAME,
-        password=PASSWORD,
-        host=HOST,
-        port=PORT,
-    )
-
-def get_supabase_client() -> Client:
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        raise ValueError("SUPABASE_URL and SUPABASE_KEY must be configured in the .env file")
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+from _shared import get_postgres_connection, PRIMARY_KEYS, TABLE_ORDER, get_supabase_client
 
 def fetch_all_from_supabase(supabase: Client, table_name: str) -> List[Dict[str, Any]]:
     """Tải toàn bộ dữ liệu từ Supabase bằng cách phân trang (Pagination) để tránh giới hạn API."""

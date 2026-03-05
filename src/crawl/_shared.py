@@ -10,19 +10,19 @@ from selenium.webdriver.chrome.service import Service
 _env_path = Path(__file__).resolve().parent.parent.parent / ".env"
 load_dotenv(dotenv_path=_env_path)
 
-# USER = os.getenv("USER")
-# PASSWORD = os.getenv("PASSWORD")
-# HOST = os.getenv("HOST")
-# DBNAME = os.getenv("DBNAME")
-# PORT = os.getenv("PORT")
+# USER = os.getenv("LOCAL_DB_USER", "postgres")
+# PASSWORD = os.getenv("LOCAL_DB_PASS", "75779905")
+# HOST = os.getenv("LOCAL_DB_HOST", "127.0.0.1")
+# DBNAME = os.getenv("LOCAL_DB_NAME", "tiki")
+# PORT = os.getenv("LOCAL_DB_PORT", "5432")
 
-USER = os.getenv("user", "postgres.vweazunxxfnptkokchyi")
-PASSWORD = os.getenv("password", "iDgC1yIsxisIS6Lk")
-HOST = os.getenv("host", "aws-1-ap-southeast-2.pooler.supabase.com")
-PORT = os.getenv("port", "6543")
-DBNAME = os.getenv("dbname", "postgres")
+USER = os.getenv("SUPABASE_DB_USER", "postgres.vweazunxxfnptkokchyi")
+PASSWORD = os.getenv("SUPABASE_DB_PASS", "iDgC1yIsxisIS6Lk")
+HOST = os.getenv("SUPABASE_DB_HOST", "aws-1-ap-southeast-2.pooler.supabase.com")
+PORT = os.getenv("SUPABASE_DB_PORT", "6543")
+DBNAME = os.getenv("SUPABASE_DB_NAME", "postgres")
 
-def get_db_connection(autocommit=True):
+def get_db_connection(autocommit=False):
     conn = psycopg2.connect(
         user=USER,
         database=DBNAME,
