@@ -754,8 +754,7 @@ def update_price_offer(cur, conn, driver):
                 FROM price_offer
                 GROUP BY product_id
             ) po ON p.product_id = po.product_id
-            ORDER BY po.last_update ASC NULLS FIRST
-            LIMIT 2000; -- Giới hạn 2000 sản phẩm để chạy vừa đủ trong 1 giờ trên GitHub Actions
+            ORDER BY po.last_update ASC NULLS FIRST;
         """
 
         # query = "SELECT product_id, product_url FROM product ORDER BY product_id DESC;"
