@@ -98,7 +98,6 @@ def main():
                 continue
 
             # --- CƠ CHẾ TỰ VỆ 1: CHUẨN HÓA DỮ LIỆU RÁC (Trị lỗi category) ---
-            # Xóa các chuỗi 'NaN', 'nan' dạng text và thay bằng None chuẩn
             df = df.replace({'NaN': None, 'nan': None, '<NA>': None, np.nan: None})
             df = df.where(pd.notnull(df), None)
 
