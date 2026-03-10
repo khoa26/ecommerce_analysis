@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from time import sleep
 
 from bs4 import BeautifulSoup
-from _shared import get_db_connection, setup_chrome_driver, create_all_tables
+from ._shared import get_db_connection, setup_chrome_driver, create_all_tables
 
 TIKI_URL = "https://tiki.vn/"
 MAX_WORKERS = 3
@@ -272,7 +272,3 @@ def main():
         conn.close()
     
     run_multi_threaded_crawler()
-
-
-if __name__ == "__main__":
-    main()

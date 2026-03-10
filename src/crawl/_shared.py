@@ -51,7 +51,7 @@ def setup_chrome_driver():
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu-sandbox")
 
-    options.add_argument("--blink-settings=imagesEnabled=false")
+    # options.add_argument("--blink-settings=imagesEnabled=false")
     
     options.add_experimental_option(
         "prefs",
@@ -191,6 +191,6 @@ def create_all_tables(cur):
     try:
         for query in queries:
             cur.execute(query)
-        print("Success! All database structures have been created/updated successfully.")
+        print("Success! All database structures have been created successfully.")
     except Exception as err:
         print(f"Error updating database structure: {err}")
