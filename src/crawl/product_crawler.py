@@ -671,8 +671,7 @@ def get_current_price_only(driver, url, product_id):
         if original_price == 0:
             original_price = current_price
 
-        coupons_list = []
-        # coupons_list = get_detailed_coupons(driver)
+        coupons_list = get_detailed_coupons(driver)
 
         service_items = soup.find_all('div', class_='sc-34e0efdc-3 jcYGog benefit-item')
         services_list = [item.find('div').text.strip() for item in service_items if item.find('div')]
@@ -746,8 +745,7 @@ def save_price_offer_to_db(cur, price_offer):
 
 def update_price_offer(cur, conn, driver):
     try:
-        query = "SELECT product_id, product_url FROM product ORDER BY product_id DESC;"
-        cur.execute(query)
+        cur.execute("SELECT product_id, product_url FROM product ORDER BY product_id ASC;")
         products = cur.fetchall()
         print(f"Starting to update price for {len(products)} products...")
         count = 0
@@ -989,14 +987,17 @@ def main():
     driver = setup_chrome_driver()
 
     try:
-        crawl_base_product(cur, conn, driver)
+        # crawl_base_product(cur, conn, driver)
 
-        repair_and_update_sellers(cur, conn, driver)
+        # repair_and_update_sellers(cur, conn, driver)
         
-        repair_finished_categories(cur, conn, driver)
+        # repair_finished_categories(cur, conn, driver)
 
         update_price_offer(cur, conn, driver)
     finally:
         driver.quit()
         cur.close()
-        conn.close()    
+        conn.close()
+
+if __name__ == "__main__":
+    main()
