@@ -10,6 +10,7 @@ matplotlib
 seaborn
 plotly
 missingno
+pyarrow
 
 selenium
 beautifulsoup4
