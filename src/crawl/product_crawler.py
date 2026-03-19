@@ -11,7 +11,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 from psycopg2 import OperationalError, InterfaceError
 
-from ._shared import create_all_tables, get_db_connection, setup_chrome_driver
+from _shared import create_all_tables, get_db_connection, setup_chrome_driver
 
 def click_see_more(driver, timeout=10):
     try:
@@ -989,11 +989,11 @@ def main():
     try:
         # crawl_base_product(cur, conn, driver)
 
-        # repair_and_update_sellers(cur, conn, driver)
+        repair_and_update_sellers(cur, conn, driver)
         
         # repair_finished_categories(cur, conn, driver)
 
-        update_price_offer(cur, conn, driver)
+        # update_price_offer(cur, conn, driver)
     finally:
         driver.quit()
         cur.close()
