@@ -745,7 +745,14 @@ def save_price_offer_to_db(cur, price_offer):
 
 def update_price_offer(cur, conn, driver):
     try:
-        cur.execute("SELECT product_id, product_url FROM product ORDER BY product_id ASC;")
+        query = """
+            SELECT p.product_id, p.product_url 
+            FROM product p
+            JOIN category c ON p.category_id = c.category_id
+            WHERE c.category_path LIKE 'Nhà Sách Tiki%'
+            ORDER BY p.product_id ASC;
+        """
+        cur.execute(query)
         products = cur.fetchall()
         print(f"Starting to update price for {len(products)} products...")
         count = 0
@@ -989,11 +996,11 @@ def main():
     try:
         # crawl_base_product(cur, conn, driver)
 
-        repair_and_update_sellers(cur, conn, driver)
+        # repair_and_update_sellers(cur, conn, driver)
         
         # repair_finished_categories(cur, conn, driver)
 
-        # update_price_offer(cur, conn, driver)
+        update_price_offer(cur, conn, driver)
     finally:
         driver.quit()
         cur.close()
