@@ -996,11 +996,11 @@ def main():
     try:
         # crawl_base_product(cur, conn, driver)
 
-        # repair_and_update_sellers(cur, conn, driver)
+        repair_and_update_sellers(cur, conn, driver)
         
         # repair_finished_categories(cur, conn, driver)
 
-        update_price_offer(cur, conn, driver)
+        # update_price_offer(cur, conn, driver)
     finally:
         driver.quit()
         cur.close()
