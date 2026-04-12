@@ -11,7 +11,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 from psycopg2 import OperationalError, InterfaceError
 
-from _shared import create_all_tables, get_db_connection, setup_chrome_driver
+from ._shared import create_all_tables, get_db_connection, setup_chrome_driver
 
 def click_see_more(driver, timeout=10):
     try:
@@ -797,14 +797,14 @@ def crawl_base_product(cur, conn, driver):
         WHERE is_scanned = TRUE
         AND (
             category_path LIKE 'Nhà Sách Tiki%'
-            -- OR category_path LIKE 'Nhà Cửa - Đời Sống%' 
-            -- OR category_path LIKE 'Điện Tử - Điện Lạnh%' 
-            -- OR category_path LIKE 'Làm Đẹp - Sức Khỏe%' 
-            -- OR category_path LIKE 'Đồ Chơi - Mẹ & Bé%' 
-            -- OR category_path LIKE 'Laptop - Máy Vi Tính - Linh kiện%' 
-            -- OR category_path LIKE 'Thể Thao - Dã Ngoại%' 
-            -- OR category_path LIKE 'Điện Gia Dụng%'
-            -- OR category_path LIKE 'Thiết Bị Số - Phụ Kiện Số%'
+            OR category_path LIKE 'Nhà Cửa - Đời Sống%' 
+            OR category_path LIKE 'Điện Tử - Điện Lạnh%' 
+            OR category_path LIKE 'Làm Đẹp - Sức Khỏe%' 
+            OR category_path LIKE 'Đồ Chơi - Mẹ & Bé%' 
+            OR category_path LIKE 'Laptop - Máy Vi Tính - Linh kiện%' 
+            OR category_path LIKE 'Thể Thao - Dã Ngoại%' 
+            OR category_path LIKE 'Điện Gia Dụng%'
+            OR category_path LIKE 'Thiết Bị Số - Phụ Kiện Số%'
         )
         AND NOT EXISTS (
             SELECT 1 
@@ -994,13 +994,13 @@ def main():
     driver = setup_chrome_driver()
 
     try:
-        # crawl_base_product(cur, conn, driver)
+        crawl_base_product(cur, conn, driver)
 
         repair_and_update_sellers(cur, conn, driver)
         
-        # repair_finished_categories(cur, conn, driver)
+        repair_finished_categories(cur, conn, driver)
 
-        # update_price_offer(cur, conn, driver)
+        update_price_offer(cur, conn, driver)
     finally:
         driver.quit()
         cur.close()

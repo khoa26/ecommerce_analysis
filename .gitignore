@@ -6,9 +6,6 @@ venv/
 .vscode/
 team_csv_data/
 req.txt
-<<<<<<< HEAD
 data/
 dashboards/
-=======
-data/
->>>>>>> d4c2b4c26f444f013e13925458f317bdb01ccd1e
+scripts/
