@@ -1,0 +1,1 @@
+# Kết nối Gemini API hoặc Local Model

@@ -201,7 +201,7 @@ ecommerce-data-analysis/
 ├── documentations/             # Report PDFs, ERD, dashboard screenshots
 │   ├── ERD.png
 │   ├── Screenshot_*.png
-│   └── main.pdf
+│   └── report.pdf
 ├── notebooks/
 │   ├── 01_data_collection.ipynb
 │   ├── 02_data_preprocessing.ipynb
