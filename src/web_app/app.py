@@ -281,15 +281,12 @@ def main() -> None:
 
     categories_df = load_tables()["category"].copy()
 
-    # ép kiểu
     categories_df["category_id"] = pd.to_numeric(categories_df["category_id"], errors="coerce")
     categories_df["parent_category_id"] = pd.to_numeric(categories_df["parent_category_id"], errors="coerce")
     categories_df["level"] = pd.to_numeric(categories_df["level"], errors="coerce")
 
-    # 👉 1. category có product
     valid_ids = set(mart["category_id"].dropna().unique())
 
-    # 👉 2. lấy toàn bộ ancestor (cha, ông...)
     def get_all_parents(category_df, child_ids):
         parents = set()
         current = set(child_ids)
@@ -313,14 +310,12 @@ def main() -> None:
 
     parent_ids = get_all_parents(categories_df, valid_ids)
 
-    # 👉 3. giữ category có product hoặc là cha của nó
     keep_ids = valid_ids.union(parent_ids)
 
     categories_df2 = categories_df[
         categories_df["category_id"].isin(keep_ids)
     ]
 
-    # 👉 4. chỉ lấy level 1–2
     categories_df2 = categories_df2[categories_df2["level"].isin([1, 2])]
     exclude_categories = ["Điện Tử - Điện Lạnh"]
 
@@ -328,16 +323,13 @@ def main() -> None:
         ~categories_df2["category_name"].isin(exclude_categories)
     ]
 
-    # 👉 5. sort đẹp
     categories_df2 = categories_df2.sort_values(["level", "category_name"])
 
-    # 👉 6. tạo options (indent theo level cho dễ nhìn)
     category_options = ["Tất cả ngành hàng"] + [
         f"{'  ' * (int(row.level)-1)}{row.category_name}"
         for _, row in categories_df2.iterrows()
     ]
 
-    # 👉 mapping để lấy id
     category_map = {
         f"{'  ' * (int(row.level)-1)}{row.category_name}": row.category_id
         for _, row in categories_df2.iterrows()
