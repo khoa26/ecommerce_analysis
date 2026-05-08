@@ -69,21 +69,21 @@ def render_overview_tab(mart_filtered: pd.DataFrame):
         st.metric(
             "Sản phẩm",
             fmt_int(total_products),
-            f"{fmt_int(total_categories)} ngành hàng",
+          
         )
 
     with k2:
         st.metric(
             "Người bán",
             fmt_int(total_sellers),
-            f"{fmt_int(total_sold)} lượt bán",
+       
         )
 
     with k3:
         st.metric(
             "Giá trung bình",
             vnd(avg_price),
-            f"Giảm TB: {pct(avg_discount)}",
+        
         )
 
     with k4:
@@ -91,7 +91,7 @@ def render_overview_tab(mart_filtered: pd.DataFrame):
         st.metric(
             "Đánh giá TB",
             rating_text,
-            f"{fmt_int(total_reviews)} lượt review",
+           
         )
 
     st.markdown("---")
