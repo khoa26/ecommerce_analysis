@@ -10,6 +10,7 @@ from config import *
 from data_engine import *
 from chat_engine import *
 from components.price_discount import render_price_discount_tab
+from components.overview import render_overview_tab
 
 
 st.set_page_config(
@@ -76,34 +77,7 @@ def dashboard_area(mart_filtered) -> None:
     tabs = st.tabs(["Tổng quan", "Ngành hàng", "Giá & ưu đãi", "Người bán", "Đánh giá"])
 
     with tabs[0]:
-        left, right = st.columns([1.2, 1])
-        with left:
-            df_cat = top_categories(mart_filtered, n=12)
-            fig = px.bar(
-                df_cat.sort_values("sold_quantity"),
-                x="sold_quantity",
-                y="category_name",
-                orientation="h",
-                color="sold_quantity",
-                color_continuous_scale="Blues",
-                title="Top ngành hàng theo sold",
-                labels={"sold_quantity": "Số lượng đã bán", "category_name": "Ngành hàng"},
-            )
-            fig.update_layout(height=420, margin=dict(l=10, r=10, t=50, b=10))
-            st.plotly_chart(fig, width="stretch")
-
-        with right:
-            sdf = mart_filtered[["current_price", "discount_percent", "coupon_discount_amount"]].dropna(subset=["current_price"])
-            fig2 = px.histogram(
-                sdf,
-                x="current_price",
-                nbins=55,
-                color_discrete_sequence=[COLOR_PRIMARY],
-                title="Phân bố giá (current_price)",
-                labels={"current_price": "Giá (VND)"},
-            )
-            fig2.update_layout(height=420, margin=dict(l=10, r=10, t=50, b=10))
-            st.plotly_chart(fig2, width="stretch")
+        render_overview_tab(mart_filtered)
 
     with tabs[1]:
         st.markdown("### Ngành hàng")
