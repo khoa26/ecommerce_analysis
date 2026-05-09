@@ -13,6 +13,7 @@ from components.price_discount import render_price_discount_tab
 from components.overview import render_overview_tab
 from components.category import render_category_tab
 from components.seller import render_seller_tab
+from components.review import render_review_tab
 
 
 st.set_page_config(
@@ -74,7 +75,7 @@ def dashboard_area(mart_filtered) -> None:
     with k4:
         render_kpi("Tổng sold", fmt_int(overview["sold_total"]))
     with k5:
-        render_kpi("Điểm TB", f"{(overview['avg_review_score'] or 0):.2f}", f"Review: {fmt_int(overview['review_total'])}")
+        render_kpi("Điểm TB", f"{(overview['avg_rating_score'] or 0):.2f}/5")
 
     tabs = st.tabs(["Tổng quan", "Ngành hàng", "Giá & ưu đãi", "Người bán", "Đánh giá", "Trợ lý AI"])
 
@@ -91,36 +92,8 @@ def dashboard_area(mart_filtered) -> None:
         render_seller_tab(mart_filtered)
         
     with tabs[4]:
-        st.markdown("### Đánh giá")
-        sdf = mart_filtered[["review_score", "review_count"]].dropna(subset=["review_score"])
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            fig = px.histogram(
-                sdf,
-                x="review_score",
-                nbins=30,
-                color_discrete_sequence=["#7C3AED"],
-                title="Phân bố điểm đánh giá (review_score)",
-                labels={"review_score": "Điểm (0–5)"},
-            )
-            fig.update_layout(height=380, margin=dict(l=10, r=10, t=50, b=10))
-            st.plotly_chart(fig, width="stretch")
+        render_review_tab(mart_filtered)
 
-        with c2:
-            sdf2 = sdf.dropna(subset=["review_count"])
-            if not sdf2.empty:
-                fig2 = px.scatter(
-                    sdf2,
-                    x="review_count",
-                    y="review_score",
-                    trendline="lowess",
-                    color_discrete_sequence=["#A78BFA"],
-                    title="Điểm vs số lượt review",
-                    labels={"review_count": "Số lượt review", "review_score": "Điểm"},
-                )
-                fig2.update_traces(marker=dict(opacity=0.35, size=5))
-                fig2.update_layout(height=380, margin=dict(l=10, r=10, t=50, b=10))
-                st.plotly_chart(fig2, width="stretch")
     with tabs[5]:
         chatbot_area(mart_filtered)
 
@@ -128,21 +101,25 @@ def dashboard_area(mart_filtered) -> None:
 def main() -> None:
     st.markdown(f"## {APP_TITLE}")
     st.markdown(
-        "<span class='muted'>Dashboard tổng quan thị trường TMĐT (Tiki) + Chatbot tương tác dựa trên dữ liệu trong <span class='accent'>data/processed</span>.</span>",
+        "<span class='muted'>Dashboard tổng quan thị trường TMĐT (Tiki) + Chatbot tương tác",
         unsafe_allow_html=True,
     )
 
     st.sidebar.markdown("## Bộ lọc dữ liệu")
+    if st.sidebar.button("Tải lại", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
 
     try:
-        mart = build_product_mart()
+        data_sig = get_processed_signature()
+        mart = build_mart(data_sig)
     except Exception as e:
         st.error(f"Can not load data from {PROCESSED_DIR}.")
         st.code(str(e))
         st.info(f"Suggestion: make sure you have the following files in {PROCESSED_DIR}")
         return
 
-    categories_df = load_tables()["category"].copy()
+    categories_df = load_tables(data_sig)["category"].copy()
 
     categories_df["category_id"] = pd.to_numeric(categories_df["category_id"], errors="coerce")
     categories_df["parent_category_id"] = pd.to_numeric(categories_df["parent_category_id"], errors="coerce")
@@ -240,7 +217,7 @@ def main() -> None:
             ChatEvent(
                 role="assistant",
                 type="text",
-                content="Chào Khoa và Nhóm 3! Bạn muốn phân tích gì từ dữ liệu Tiki? Mình có thể hỗ trợ sinh mã Python và vẽ biểu đồ trực tiếp."
+                content="Chào bạn! Bạn muốn phân tích gì từ dữ liệu Tiki? Mình có thể hỗ trợ sinh mã Python và vẽ biểu đồ trực tiếp nhé."
             )
         ]
 

@@ -78,8 +78,8 @@ def execute_and_append(code: str, index: int):
         st.rerun()
 
 def chatbot_area(mart_filtered: pd.DataFrame) -> None:
-    st.markdown("### 🤖 Trợ lý AI Phân tích (Human-in-the-loop)")
-    st.caption("Nhập yêu cầu bằng ngôn ngữ tự nhiên. AI sẽ sinh mã Python và chờ bạn duyệt/chỉnh sửa trước khi thực thi.")
+    st.markdown("### 🤖 Trợ lý AI Phân tích")
+    # st.caption("Nhập yêu cầu bằng ngôn ngữ tự nhiên. AI sẽ sinh mã Python và chờ bạn duyệt/chỉnh sửa trước khi thực thi.")
 
     # Hiển thị lịch sử chat
     for i, ev in enumerate(st.session_state.chat_events):
@@ -88,7 +88,7 @@ def chatbot_area(mart_filtered: pd.DataFrame) -> None:
                 st.markdown(ev.content)
             
             elif ev.type == "pending_code":
-                st.markdown(f"**💡 AI Giải thích:** {ev.content}")
+                st.markdown(f"**💡 Giải thích:** {ev.content}")
                 
                 if not ev.is_executed:
                     st.info("Trạng thái: Đang chờ duyệt. Bạn có thể chỉnh sửa mã nguồn bên dưới trước khi chạy.")

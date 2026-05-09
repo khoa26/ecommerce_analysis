@@ -14,6 +14,7 @@ COLOR_TEXT_MUTED = "rgba(255,255,255,.7)"
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 PROCESSED_DIR = ROOT_DIR / "data" / "processed"
+PROCESSED_POWERBI_DIR = PROCESSED_DIR / "powerbi"
 
 def vnd(x: float | int | None) -> str:
     if x is None:
