@@ -5,198 +5,147 @@ Classes/Types: ChatIntent, ChatEvent.
 
 Hàm: route_intent(query), render_assistant_event(ev, mart_filtered).
 """
-
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Literal
-
-import pandas as pd
-import plotly.express as px
 import streamlit as st
+import pandas as pd
+import plotly.io as pio
+import requests
+from dataclasses import dataclass
+from typing import Any, Literal, Optional
+
 from config import *
-from data_engine import *
 
-ChatIntent = Literal[
-    "top_categories",
-    "price_distribution",
-    "discount_distribution",
-    "rating_distribution",
-    "top_sellers",
-    "compare_category_price",
-    "help",
-]
+# URL của Backend FastAPI (Mặc định chạy ở cổng 8000)
+API_URL = "http://localhost:8000"
 
-@dataclass(frozen=True)
+@dataclass
 class ChatEvent:
     role: Literal["user", "assistant"]
+    type: Literal["text", "pending_code", "result_df", "result_plotly", "error"]
     content: str
-    intent: ChatIntent | None = None
-    params: dict[str, Any] | None = None
+    code: Optional[str] = None
+    data: Optional[Any] = None
+    is_executed: bool = False  # Đánh dấu xem đoạn code này đã được người dùng duyệt/chạy chưa
 
+def call_ai_generate(query: str) -> dict:
+    """Gọi API sinh code của AI"""
+    response = requests.post(f"{API_URL}/ai/generate", json={"query": query})
 
-def route_intent(query: str) -> tuple[ChatIntent, dict[str, Any]]:
-    q = query.strip().lower()
+    if response.status_code != 200:
+        try:
+            error_detail = response.json().get("detail", response.text)
+        except Exception:
+            error_detail = response.text
+        raise Exception(f"Chi tiết lỗi từ Backend: {error_detail}")
+        
+    return response.json()
 
-    if not q or any(k in q for k in ["help", "gợi ý", "hướng dẫn", "làm được gì", "có thể hỏi gì"]):
-        return "help", {}
+def call_executor(code: str) -> dict:
+    """Gửi code đã duyệt xuống API Thực thi Local"""
+    response = requests.post(f"{API_URL}/execute", json={"code": code})
+    
+    if response.status_code != 200:
+        # Giúp debug lỗi tốt hơn
+        try:
+            error_detail = response.json().get("detail", "Lỗi thực thi không xác định")
+        except:
+            error_detail = response.text
+        raise Exception(error_detail)
+    return response.json()
 
-    if "ngành" in q or "danh mục" in q or "category" in q:
-        if "giá" in q and ("so sánh" in q or "compare" in q or "khác nhau" in q):
-            return "compare_category_price", {"n": 12}
-        n = 10
-        for token in q.split():
-            if token.isdigit():
-                n = max(3, min(30, int(token)))
-                break
-        return "top_categories", {"n": n}
+def execute_and_append(code: str, index: int):
+    # Đánh dấu đã thực thi để ẩn nút bấm
+    st.session_state.chat_events[index].is_executed = True
+    st.session_state.chat_events[index].code = code 
 
-    if any(k in q for k in ["giá", "price", "vnd"]):
-        return "price_distribution", {"sample": 60_000}
-
-    if any(k in q for k in ["khuyến mãi", "giảm", "discount", "sale"]):
-        return "discount_distribution", {"sample": 60_000}
-
-    if any(k in q for k in ["đánh giá", "rating", "sao", "review"]):
-        return "rating_distribution", {"sample": 80_000}
-
-    if any(k in q for k in ["người bán", "seller", "shop"]):
-        n = 10
-        for token in q.split():
-            if token.isdigit():
-                n = max(3, min(30, int(token)))
-                break
-        return "top_sellers", {"n": n}
-
-    return "help", {}
-
-
-def render_assistant_event(ev: ChatEvent, mart_filtered: pd.DataFrame) -> None:
-    if ev.intent is None:
-        st.markdown(ev.content)
-        return
-
-    if ev.intent == "help":
-        st.markdown(
-            """
-        Mình có thể giúp bạn phân tích nhanh theo ngôn ngữ tự nhiên (không cần viết code), ví dụ:
-
-        - **"Top 10 ngành hàng bán chạy nhất"**
-        - **"Phân bố giá sản phẩm"** hoặc **"Giá trung bình"**
-        - **"Khuyến mãi/giảm giá đang như thế nào?"**
-        - **"Phân bố rating"**
-        - **"Top 10 người bán theo sold"**
-        - **"So sánh giá giữa các ngành hàng"**
-
-        Bạn có thể đổi bộ lọc ở sidebar để chatbot trả lời đúng theo phạm vi bạn quan tâm.
-        """
-        )
-        return
-
-    if ev.intent == "top_categories":
-        n = int((ev.params or {}).get("n", 10))
-        df = top_categories(mart_filtered, n=n)
-        st.markdown(f"**Top {n} ngành hàng theo sold (theo bộ lọc hiện tại).**")
-        fig = px.bar(
-            df.sort_values("sold_quantity"),
-            x="sold_quantity",
-            y="category_name",
-            orientation="h",
-            color="sold_quantity",
-            color_continuous_scale="Blues",
-            labels={"sold_quantity": "Số lượng đã bán", "category_name": "Ngành hàng"},
-        )
-        fig.update_layout(height=360, margin=dict(l=10, r=10, t=20, b=10))
-        st.plotly_chart(fig, width="stretch")
-        return
-
-    if ev.intent == "top_sellers":
-        n = int((ev.params or {}).get("n", 10))
-        df = top_sellers(mart_filtered, n=n)
-        st.markdown(f"**Top {n} người bán theo sold (theo bộ lọc hiện tại).**")
-        fig = px.bar(
-            df.sort_values("sold_quantity"),
-            x="sold_quantity",
-            y="seller_name",
-            orientation="h",
-            color="sold_quantity",
-            color_continuous_scale="Greens",
-            labels={"sold_quantity": "Số lượng đã bán", "seller_name": "Người bán"},
-        )
-        fig.update_layout(height=360, margin=dict(l=10, r=10, t=20, b=10))
-        st.plotly_chart(fig, width="stretch")
-        return
-
-    if ev.intent == "price_distribution":
-        sdf = mart_filtered[["current_price", "category_name"]].dropna(subset=["current_price"])
-        st.markdown("**Phân bố giá (current_price) theo bộ lọc hiện tại.**")
-        fig = px.histogram(
-            sdf,
-            x="current_price",
-            nbins=60,
-            color_discrete_sequence=[COLOR_PRIMARY],
-            labels={"current_price": "Giá hiện tại (VND)"},
-        )
-        fig.update_layout(height=320, margin=dict(l=10, r=10, t=20, b=10))
-        st.plotly_chart(fig, width="stretch")
-        return
-
-    if ev.intent == "discount_distribution":
-        sdf = mart_filtered[["discount_percent"]].dropna(subset=["discount_percent"])
-        st.markdown("**Phân bố mức giảm giá (discount_percent) theo bộ lọc hiện tại.**")
-        fig = px.histogram(
-            sdf,
-            x="discount_percent",
-            nbins=50,
-            color_discrete_sequence=["#FFB020"],
-            labels={"discount_percent": "Giảm giá (%)"},
-        )
-        fig.update_layout(height=320, margin=dict(l=10, r=10, t=20, b=10))
-        st.plotly_chart(fig, width="stretch")
-        return
-
-    if ev.intent == "rating_distribution":
-        sdf = mart_filtered[["review_score", "review_count"]].dropna(subset=["review_score"])
-        st.markdown("**Phân bố điểm đánh giá (review_score) theo bộ lọc hiện tại.**")
-        fig = px.histogram(
-            sdf,
-            x="review_score",
-            nbins=30,
-            color_discrete_sequence=["#7C3AED"],
-            labels={"review_score": "Điểm đánh giá (0–5)"},
-        )
-        fig.update_layout(height=320, margin=dict(l=10, r=10, t=20, b=10))
-        st.plotly_chart(fig, width="stretch")
-        return
-
-    if ev.intent == "compare_category_price":
-        n = int((ev.params or {}).get("n", 12))
-        if mart_filtered.empty:
-            df = pd.DataFrame(columns=["category_id", "category_name", "median_price", "avg_price", "product_count"])
-        else:
-            df = (
-                mart_filtered.groupby(["category_id", "category_name"], dropna=False)
-                .agg(
-                    median_price=("current_price", "median"),
-                    avg_price=("current_price", "mean"),
-                    product_count=("product_id", "count"),
+    try:
+        res = call_executor(code)
+        if res["status"] == "success":
+            if res["type"] == "dataframe":
+                st.session_state.chat_events.append(
+                    ChatEvent(role="assistant", type="result_df", content="📊 **Kết quả dữ liệu:**", data=res["data"])
                 )
-                .reset_index()
-                .sort_values("product_count", ascending=False)
-                .head(n)
-            )
-        st.markdown(f"**So sánh giá giữa {n} ngành hàng (theo số lượng sản phẩm nhiều nhất trong bộ lọc).**")
-        fig = px.bar(
-            df.sort_values("median_price"),
-            x="median_price",
-            y="category_name",
-            orientation="h",
-            color="product_count",
-            color_continuous_scale="Teal",
-            labels={"median_price": "Giá trung vị (VND)", "category_name": "Ngành hàng", "product_count": "Số sản phẩm"},
+            elif res["type"] == "plotly_json":
+                st.session_state.chat_events.append(
+                    ChatEvent(role="assistant", type="result_plotly", content="📈 **Biểu đồ phân tích:**", data=res["data"])
+                )
+            st.rerun() 
+    except Exception as e:
+        st.session_state.chat_events.append(
+            ChatEvent(role="assistant", type="error", content=f"❌ **Lỗi thực thi:**\n{str(e)}")
         )
-        fig.update_layout(height=360, margin=dict(l=10, r=10, t=20, b=10))
-        st.plotly_chart(fig, width="stretch")
-        return
+        st.rerun()
 
-    st.markdown(ev.content)
+def chatbot_area(mart_filtered: pd.DataFrame) -> None:
+    st.markdown("### 🤖 Trợ lý AI Phân tích")
+    # st.caption("Nhập yêu cầu bằng ngôn ngữ tự nhiên. AI sẽ sinh mã Python và chờ bạn duyệt/chỉnh sửa trước khi thực thi.")
+
+    # Hiển thị lịch sử chat
+    for i, ev in enumerate(st.session_state.chat_events):
+        with st.chat_message(ev.role):
+            if ev.type == "text":
+                st.markdown(ev.content)
+            
+            elif ev.type == "pending_code":
+                st.markdown(f"**💡 Giải thích:** {ev.content}")
+                
+                if not ev.is_executed:
+                    st.info("Trạng thái: Đang chờ duyệt. Bạn có thể chỉnh sửa mã nguồn bên dưới trước khi chạy.")
+                    # Cho phép chỉnh sửa code
+                    edited_code = st.text_area("Mã nguồn (Python):", value=ev.code, height=250, key=f"code_{i}")
+                    
+                    col1, col2 = st.columns([1.5, 5])
+                    with col1:
+                        if st.button("🚀 Duyệt & Chạy", key=f"btn_{i}", type="primary"):
+                            execute_and_append(edited_code, i)
+                    with col2:
+                        if st.button("❌ Hủy bỏ", key=f"reject_{i}"):
+                            st.session_state.chat_events[i].is_executed = True
+                            st.session_state.chat_events.append(
+                                ChatEvent(role="assistant", type="text", content="Đã hủy bỏ việc thực thi đoạn mã trên.")
+                            )
+                            st.rerun()
+                else:
+                    st.markdown("**Đoạn mã đã chốt & thực thi:**")
+                    st.code(ev.code, language="python")
+
+            elif ev.type == "result_df":
+                st.markdown(ev.content)
+                st.dataframe(pd.DataFrame(ev.data))
+            
+            elif ev.type == "result_plotly":
+                st.markdown(ev.content)
+                fig = pio.from_json(ev.data)
+                st.plotly_chart(fig, use_container_width=True)
+            
+            elif ev.type == "error":
+                st.error(ev.content)
+
+    # Khung nhập liệu
+    prompt = st.chat_input("Ví dụ: Vẽ biểu đồ top 5 ngành hàng có doanh thu ước tính cao nhất")
+    
+    if prompt:
+        # Thêm câu hỏi của user vào log và tải lại UI để hiển thị ngay lập tức
+        st.session_state.chat_events.append(ChatEvent(role="user", type="text", content=prompt))
+        st.rerun()
+
+    # Luồng xử lý gọi API: Kích hoạt nếu tin nhắn cuối cùng là của người dùng
+    if st.session_state.chat_events and st.session_state.chat_events[-1].role == "user":
+        with st.chat_message("assistant"):
+            with st.spinner("AI đang phân tích dữ liệu và sinh mã nguồn..."):
+                try:
+                    ai_response = call_ai_generate(st.session_state.chat_events[-1].content)
+                    st.session_state.chat_events.append(
+                        ChatEvent(
+                            role="assistant", 
+                            type="pending_code", 
+                            content=ai_response["explanation"],
+                            code=ai_response["code"]
+                        )
+                    )
+                    st.rerun() # Tải lại UI để hiển thị khung code chờ duyệt
+                except Exception as e:
+                    st.error(f"Lỗi kết nối đến API AI: {str(e)}\n\nHãy đảm bảo bạn đã khởi động Backend FastAPI ở cổng 8000.")
+                    # Ghi nhận lỗi và thoát luồng chờ
+                    st.session_state.chat_events.append(ChatEvent(role="assistant", type="error", content=f"API Error: {str(e)}"))

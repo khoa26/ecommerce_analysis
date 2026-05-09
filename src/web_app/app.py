@@ -11,6 +11,9 @@ from data_engine import *
 from chat_engine import *
 from components.price_discount import render_price_discount_tab
 from components.overview import render_overview_tab
+from components.category import render_category_tab
+from components.seller import render_seller_tab
+from components.review import render_review_tab
 
 
 st.set_page_config(
@@ -72,188 +75,51 @@ def dashboard_area(mart_filtered) -> None:
     with k4:
         render_kpi("Tổng sold", fmt_int(overview["sold_total"]))
     with k5:
-        render_kpi("Điểm TB", f"{(overview['avg_review_score'] or 0):.2f}", f"Review: {fmt_int(overview['review_total'])}")
+        render_kpi("Điểm TB", f"{(overview['avg_rating_score'] or 0):.2f}/5")
 
-    tabs = st.tabs(["Tổng quan", "Ngành hàng", "Giá & ưu đãi", "Người bán", "Đánh giá"])
+    tabs = st.tabs(["Tổng quan", "Ngành hàng", "Giá & ưu đãi", "Người bán", "Đánh giá", "Trợ lý AI"])
 
     with tabs[0]:
         render_overview_tab(mart_filtered)
 
     with tabs[1]:
-        st.markdown("### Ngành hàng")
-        df_cat = top_categories(mart_filtered, n=25)
-        c1, c2 = st.columns([1.1, 0.9])
-        with c1:
-            fig = px.bar(
-                df_cat.sort_values("sold_quantity"),
-                x="sold_quantity",
-                y="category_name",
-                orientation="h",
-                color="avg_review_score",
-                color_continuous_scale="Viridis",
-                title="Top ngành hàng: Sold & điểm đánh giá",
-                labels={
-                    "sold_quantity": "Số lượng đã bán",
-                    "category_name": "Ngành hàng",
-                    "avg_review_score": "Điểm TB",
-                },
-            )
-            fig.update_layout(height=520, margin=dict(l=10, r=10, t=50, b=10))
-            st.plotly_chart(fig, width="stretch")
-
-        with c2:
-            st.dataframe(
-                df_cat.assign(
-                    avg_price=df_cat["avg_price"].round(0),
-                    avg_review_score=df_cat["avg_review_score"].round(2),
-                ).rename(
-                    columns={
-                        "category_name": "Ngành hàng",
-                        "sold_quantity": "Sold",
-                        "product_count": "Số SP",
-                        "avg_review_score": "Điểm TB",
-                        "avg_price": "Giá TB",
-                    }
-                ),
-                width="stretch",
-                height=520,
-            )
+        render_category_tab(mart_filtered)
 
     with tabs[2]:
         render_price_discount_tab(mart_filtered)
 
     with tabs[3]:
-        st.markdown("### Người bán")
-        df = top_sellers(mart_filtered, n=20)
-        c1, c2 = st.columns([1.1, 0.9])
-        with c1:
-            fig = px.bar(
-                df.sort_values("sold_quantity"),
-                x="sold_quantity",
-                y="seller_name",
-                orientation="h",
-                color="seller_rating",
-                color_continuous_scale="YlGn",
-                title="Top người bán theo sold & rating",
-                labels={"sold_quantity": "Số lượng đã bán", "seller_name": "Người bán", "seller_rating": "Rating"},
-            )
-            fig.update_layout(height=520, margin=dict(l=10, r=10, t=50, b=10))
-            st.plotly_chart(fig, width="stretch")
-
-        with c2:
-            st.dataframe(
-                df.assign(seller_rating=df["seller_rating"].round(2)).rename(
-                    columns={
-                        "seller_name": "Người bán",
-                        "sold_quantity": "Sold",
-                        "product_count": "Số SP",
-                        "seller_rating": "Rating",
-                    }
-                ),
-                width="stretch",
-                height=520,
-            )
-
+        render_seller_tab(mart_filtered)
+        
     with tabs[4]:
-        st.markdown("### Đánh giá")
-        sdf = mart_filtered[["review_score", "review_count"]].dropna(subset=["review_score"])
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            fig = px.histogram(
-                sdf,
-                x="review_score",
-                nbins=30,
-                color_discrete_sequence=["#7C3AED"],
-                title="Phân bố điểm đánh giá (review_score)",
-                labels={"review_score": "Điểm (0–5)"},
-            )
-            fig.update_layout(height=380, margin=dict(l=10, r=10, t=50, b=10))
-            st.plotly_chart(fig, width="stretch")
+        render_review_tab(mart_filtered)
 
-        with c2:
-            sdf2 = sdf.dropna(subset=["review_count"])
-            if not sdf2.empty:
-                fig2 = px.scatter(
-                    sdf2,
-                    x="review_count",
-                    y="review_score",
-                    trendline="lowess",
-                    color_discrete_sequence=["#A78BFA"],
-                    title="Điểm vs số lượt review",
-                    labels={"review_count": "Số lượt review", "review_score": "Điểm"},
-                )
-                fig2.update_traces(marker=dict(opacity=0.35, size=5))
-                fig2.update_layout(height=380, margin=dict(l=10, r=10, t=50, b=10))
-                st.plotly_chart(fig2, width="stretch")
+    with tabs[5]:
+        chatbot_area(mart_filtered)
 
-def chatbot_area(mart_filtered: pd.DataFrame) -> None:
-    st.markdown("### 🤖 Chatbot phân tích")
-    st.caption("Nhập câu hỏi bằng tiếng Việt. Chatbot sẽ trả lời theo dữ liệu và bộ lọc hiện tại.")
-
-    st.markdown(
-        """
-        <span class="chip">Gợi ý:</span>
-        <span class="chip">Top ngành hàng</span>
-        <span class="chip">Phân bố giá</span>
-        <span class="chip">Khuyến mãi</span>
-        <span class="chip">Rating</span>
-        <span class="chip">Top người bán</span>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    for ev in st.session_state.chat_events:
-        with st.chat_message(ev.role):
-            if ev.role == "assistant":
-                render_assistant_event(ev, mart_filtered)
-            else:
-                st.markdown(ev.content)
-
-    prompt = st.chat_input("Ví dụ: Top 10 ngành hàng bán chạy nhất")
-    if prompt:
-        st.session_state.chat_events.append(ChatEvent(role="user", content=prompt))
-        intent, params = route_intent(prompt)
-
-        if intent == "help":
-            content = "Mình gợi ý một vài câu hỏi phổ biến để bạn bắt đầu."
-        elif intent == "top_categories":
-            content = "Mình đang tổng hợp top ngành hàng theo sold."
-        elif intent == "top_sellers":
-            content = "Mình đang tổng hợp top người bán theo sold."
-        elif intent == "price_distribution":
-            content = "Mình đang tổng hợp phân bố giá hiện tại."
-        elif intent == "discount_distribution":
-            content = "Mình đang tổng hợp phân bố mức giảm giá."
-        elif intent == "rating_distribution":
-            content = "Mình đang tổng hợp phân bố điểm đánh giá."
-        elif intent == "compare_category_price":
-            content = "Mình đang so sánh giá giữa các ngành hàng."
-        else:
-            content = "Mình đang phân tích yêu cầu của bạn."
-
-        st.session_state.chat_events.append(
-            ChatEvent(role="assistant", content=content, intent=intent, params=params)
-        )
-        st.rerun()
 
 def main() -> None:
     st.markdown(f"## {APP_TITLE}")
     st.markdown(
-        "<span class='muted'>Dashboard tổng quan thị trường TMĐT (Tiki) + Chatbot tương tác dựa trên dữ liệu trong <span class='accent'>data/processed</span>.</span>",
+        "<span class='muted'>Dashboard tổng quan thị trường TMĐT (Tiki) + Chatbot tương tác",
         unsafe_allow_html=True,
     )
 
     st.sidebar.markdown("## Bộ lọc dữ liệu")
+    if st.sidebar.button("Tải lại", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
 
     try:
-        mart = build_product_mart()
+        data_sig = get_processed_signature()
+        mart = build_mart(data_sig)
     except Exception as e:
         st.error(f"Can not load data from {PROCESSED_DIR}.")
         st.code(str(e))
         st.info(f"Suggestion: make sure you have the following files in {PROCESSED_DIR}")
         return
 
-    categories_df = load_tables()["category"].copy()
+    categories_df = load_tables(data_sig)["category"].copy()
 
     categories_df["category_id"] = pd.to_numeric(categories_df["category_id"], errors="coerce")
     categories_df["parent_category_id"] = pd.to_numeric(categories_df["parent_category_id"], errors="coerce")
@@ -350,15 +216,12 @@ def main() -> None:
         st.session_state.chat_events = [
             ChatEvent(
                 role="assistant",
-                content="Bạn muốn phân tích gì từ dữ liệu Tiki? Mình có thể trả lời bằng số liệu và biểu đồ.",
-                intent="help",
-                params={},
+                type="text",
+                content="Chào bạn! Bạn muốn phân tích gì từ dữ liệu Tiki? Mình có thể hỗ trợ sinh mã Python và vẽ biểu đồ trực tiếp nhé."
             )
         ]
 
     dashboard_area(mart_filtered)
-    st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
-    chatbot_area(mart_filtered)
 
     st.markdown(
         f"<div class='muted'>Cập nhật lúc: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</div>",

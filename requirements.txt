@@ -24,3 +24,8 @@ imbalanced-learn
 streamlit
 pandas
 plotly
+fastapi
+uvicorn
+pydantic
+google-genai
+requests
