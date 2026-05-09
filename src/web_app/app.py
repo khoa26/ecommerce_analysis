@@ -74,7 +74,7 @@ def dashboard_area(mart_filtered) -> None:
     with k5:
         render_kpi("Điểm TB", f"{(overview['avg_review_score'] or 0):.2f}", f"Review: {fmt_int(overview['review_total'])}")
 
-    tabs = st.tabs(["Tổng quan", "Ngành hàng", "Giá & ưu đãi", "Người bán", "Đánh giá"])
+    tabs = st.tabs(["Tổng quan", "Ngành hàng", "Giá & ưu đãi", "Người bán", "Đánh giá", "Trợ lý AI"])
 
     with tabs[0]:
         render_overview_tab(mart_filtered)
@@ -185,56 +185,9 @@ def dashboard_area(mart_filtered) -> None:
                 fig2.update_traces(marker=dict(opacity=0.35, size=5))
                 fig2.update_layout(height=380, margin=dict(l=10, r=10, t=50, b=10))
                 st.plotly_chart(fig2, width="stretch")
+    with tabs[5]:
+        chatbot_area(mart_filtered)
 
-def chatbot_area(mart_filtered: pd.DataFrame) -> None:
-    st.markdown("### 🤖 Chatbot phân tích")
-    st.caption("Nhập câu hỏi bằng tiếng Việt. Chatbot sẽ trả lời theo dữ liệu và bộ lọc hiện tại.")
-
-    st.markdown(
-        """
-        <span class="chip">Gợi ý:</span>
-        <span class="chip">Top ngành hàng</span>
-        <span class="chip">Phân bố giá</span>
-        <span class="chip">Khuyến mãi</span>
-        <span class="chip">Rating</span>
-        <span class="chip">Top người bán</span>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    for ev in st.session_state.chat_events:
-        with st.chat_message(ev.role):
-            if ev.role == "assistant":
-                render_assistant_event(ev, mart_filtered)
-            else:
-                st.markdown(ev.content)
-
-    prompt = st.chat_input("Ví dụ: Top 10 ngành hàng bán chạy nhất")
-    if prompt:
-        st.session_state.chat_events.append(ChatEvent(role="user", content=prompt))
-        intent, params = route_intent(prompt)
-
-        if intent == "help":
-            content = "Mình gợi ý một vài câu hỏi phổ biến để bạn bắt đầu."
-        elif intent == "top_categories":
-            content = "Mình đang tổng hợp top ngành hàng theo sold."
-        elif intent == "top_sellers":
-            content = "Mình đang tổng hợp top người bán theo sold."
-        elif intent == "price_distribution":
-            content = "Mình đang tổng hợp phân bố giá hiện tại."
-        elif intent == "discount_distribution":
-            content = "Mình đang tổng hợp phân bố mức giảm giá."
-        elif intent == "rating_distribution":
-            content = "Mình đang tổng hợp phân bố điểm đánh giá."
-        elif intent == "compare_category_price":
-            content = "Mình đang so sánh giá giữa các ngành hàng."
-        else:
-            content = "Mình đang phân tích yêu cầu của bạn."
-
-        st.session_state.chat_events.append(
-            ChatEvent(role="assistant", content=content, intent=intent, params=params)
-        )
-        st.rerun()
 
 def main() -> None:
     st.markdown(f"## {APP_TITLE}")
@@ -350,15 +303,12 @@ def main() -> None:
         st.session_state.chat_events = [
             ChatEvent(
                 role="assistant",
-                content="Bạn muốn phân tích gì từ dữ liệu Tiki? Mình có thể trả lời bằng số liệu và biểu đồ.",
-                intent="help",
-                params={},
+                type="text",
+                content="Chào Khoa và Nhóm 3! Bạn muốn phân tích gì từ dữ liệu Tiki? Mình có thể hỗ trợ sinh mã Python và vẽ biểu đồ trực tiếp."
             )
         ]
 
     dashboard_area(mart_filtered)
-    st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
-    chatbot_area(mart_filtered)
 
     st.markdown(
         f"<div class='muted'>Cập nhật lúc: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</div>",
