@@ -11,6 +11,8 @@ from data_engine import *
 from chat_engine import *
 from components.price_discount import render_price_discount_tab
 from components.overview import render_overview_tab
+from components.category import render_category_tab
+from components.seller import render_seller_tab
 
 
 st.set_page_config(
@@ -80,80 +82,14 @@ def dashboard_area(mart_filtered) -> None:
         render_overview_tab(mart_filtered)
 
     with tabs[1]:
-        st.markdown("### Ngành hàng")
-        df_cat = top_categories(mart_filtered, n=25)
-        c1, c2 = st.columns([1.1, 0.9])
-        with c1:
-            fig = px.bar(
-                df_cat.sort_values("sold_quantity"),
-                x="sold_quantity",
-                y="category_name",
-                orientation="h",
-                color="avg_review_score",
-                color_continuous_scale="Viridis",
-                title="Top ngành hàng: Sold & điểm đánh giá",
-                labels={
-                    "sold_quantity": "Số lượng đã bán",
-                    "category_name": "Ngành hàng",
-                    "avg_review_score": "Điểm TB",
-                },
-            )
-            fig.update_layout(height=520, margin=dict(l=10, r=10, t=50, b=10))
-            st.plotly_chart(fig, width="stretch")
-
-        with c2:
-            st.dataframe(
-                df_cat.assign(
-                    avg_price=df_cat["avg_price"].round(0),
-                    avg_review_score=df_cat["avg_review_score"].round(2),
-                ).rename(
-                    columns={
-                        "category_name": "Ngành hàng",
-                        "sold_quantity": "Sold",
-                        "product_count": "Số SP",
-                        "avg_review_score": "Điểm TB",
-                        "avg_price": "Giá TB",
-                    }
-                ),
-                width="stretch",
-                height=520,
-            )
+        render_category_tab(mart_filtered)
 
     with tabs[2]:
         render_price_discount_tab(mart_filtered)
 
     with tabs[3]:
-        st.markdown("### Người bán")
-        df = top_sellers(mart_filtered, n=20)
-        c1, c2 = st.columns([1.1, 0.9])
-        with c1:
-            fig = px.bar(
-                df.sort_values("sold_quantity"),
-                x="sold_quantity",
-                y="seller_name",
-                orientation="h",
-                color="seller_rating",
-                color_continuous_scale="YlGn",
-                title="Top người bán theo sold & rating",
-                labels={"sold_quantity": "Số lượng đã bán", "seller_name": "Người bán", "seller_rating": "Rating"},
-            )
-            fig.update_layout(height=520, margin=dict(l=10, r=10, t=50, b=10))
-            st.plotly_chart(fig, width="stretch")
-
-        with c2:
-            st.dataframe(
-                df.assign(seller_rating=df["seller_rating"].round(2)).rename(
-                    columns={
-                        "seller_name": "Người bán",
-                        "sold_quantity": "Sold",
-                        "product_count": "Số SP",
-                        "seller_rating": "Rating",
-                    }
-                ),
-                width="stretch",
-                height=520,
-            )
-
+        render_seller_tab(mart_filtered)
+        
     with tabs[4]:
         st.markdown("### Đánh giá")
         sdf = mart_filtered[["review_score", "review_count"]].dropna(subset=["review_score"])
