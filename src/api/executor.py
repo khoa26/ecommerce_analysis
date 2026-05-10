@@ -1,10 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 import pandas as pd
 import plotly.io as pio
 import sys
 import json
-import os
+import requests
 from datetime import datetime
 from pathlib import Path
 import io
@@ -25,17 +25,15 @@ router = APIRouter(prefix="/execute", tags=["Local Execution"])
 class ExecuteRequest(BaseModel):
     code: str
 
-def log_execution_activity(entry: dict):
-    """Ghi log chi tiết quá trình thực thi và kết quả"""
-    log_dir = Path(__file__).resolve().parents[2] / "data" / "logs"
-    os.makedirs(log_dir, exist_ok=True)
-    log_file = log_dir / "ai_activity.jsonl"
-    
-    with open(log_file, "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+def call_log_api(entry: dict):
+    """Hàm thực hiện HTTP POST gọi sang API Logs"""
+    try:
+        requests.post("http://127.0.0.1:8000/logs/save", json=entry, timeout=3)
+    except Exception as e:
+        print(f"[Warning] Không thể gọi API Logs: {e}")
 
 @router.post("")
-async def run_code(request: ExecuteRequest):
+async def run_code(request: ExecuteRequest, background_tasks: BackgroundTasks):
     log_entry = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "action": "EXECUTE",
@@ -43,18 +41,16 @@ async def run_code(request: ExecuteRequest):
         "status": "pending",
         "result_type": None,
         "analysis_output": None,
-        "execution_logs": None, # Thêm trường lưu log
+        "execution_logs": None,
         "error_detail": None
     }
     
-    # Tạo biến để hứng mọi lệnh print() hoặc warning
     stdout_capture = io.StringIO()
     
     try:
         df = build_product_mart()
         local_namespace = {}
         
-        # BỌC LỆNH CHẠY CODE VÀO TRONG contextlib
         with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stdout_capture):
             exec(request.code, globals(), local_namespace)
             
@@ -63,10 +59,8 @@ async def run_code(request: ExecuteRequest):
                 
             result = local_namespace['analyze'](df)
             
-        # Lấy toàn bộ chữ đã được print ra
         captured_logs = stdout_capture.getvalue()
         
-        # Xử lý kết quả trả về và ghi log (NHỚ TRẢ THÊM 'logs' VỀ CHO FRONTEND)
         if result['type'] == 'dataframe':
             data_sample = result['data'].head(10).to_dict(orient='records')
             log_entry.update({
@@ -75,13 +69,14 @@ async def run_code(request: ExecuteRequest):
                 "analysis_output": data_sample,
                 "execution_logs": captured_logs
             })
-            log_execution_activity(log_entry)
+            # Đẩy việc gọi API ghi log vào chạy ngầm
+            background_tasks.add_task(call_log_api, log_entry)
             
             return {
                 "status": "success", 
                 "type": "dataframe", 
                 "data": result['data'].head(100).to_dict(orient='records'),
-                "logs": captured_logs # <-- Trả logs về frontend
+                "logs": captured_logs
             }
             
         elif result['type'] == 'plotly_json':
@@ -92,22 +87,22 @@ async def run_code(request: ExecuteRequest):
                 "analysis_output": json.loads(fig_json),
                 "execution_logs": captured_logs
             })
-            log_execution_activity(log_entry)
+            # Đẩy việc gọi API ghi log vào chạy ngầm
+            background_tasks.add_task(call_log_api, log_entry)
             
             return {
                 "status": "success", 
                 "type": "plotly_json", 
                 "data": fig_json,
-                "logs": captured_logs # <-- Trả logs về frontend
+                "logs": captured_logs
             }
 
     except Exception as e:
-        # Nếu có lỗi, cũng lấy luôn những gì đã kịp print ra trước khi chết
         captured_logs = stdout_capture.getvalue()
         log_entry.update({
             "status": "failed",
             "execution_logs": captured_logs,
             "error_detail": str(e)
         })
-        log_execution_activity(log_entry)
+        background_tasks.add_task(call_log_api, log_entry)
         raise HTTPException(status_code=400, detail=f"Lỗi: {str(e)}\nLogs: {captured_logs}")
