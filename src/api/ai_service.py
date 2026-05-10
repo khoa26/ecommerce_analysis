@@ -1,6 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import sys
+import json
+import os
+from datetime import datetime
 from pathlib import Path
 
 # Đảm bảo import được module từ thư mục cha
@@ -16,12 +19,17 @@ class AIResponse(BaseModel):
     explanation: str
     code: str
 
+def log_ai_activity(entry: dict):
+    """Hàm dùng chung để ghi log vào file JSONL"""
+    log_dir = Path(__file__).resolve().parents[2] / "data" / "logs"
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = log_dir / "ai_activity.jsonl"
+    
+    with open(log_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
 @router.post("/generate", response_model=AIResponse)
 async def generate_code(request: AIRequest):
-    """
-    Nhận câu hỏi từ người dùng, gọi AI Model và trả về Code + Giải thích.
-    Đoạn code này sẽ nằm ở trạng thái PENDING chờ người dùng duyệt trên Frontend.
-    """
     if not request.query:
         raise HTTPException(status_code=400, detail="Query không được để trống")
     
@@ -29,6 +37,15 @@ async def generate_code(request: AIRequest):
     
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
+        
+    # GHI LOG: Giai đoạn sinh mã
+    log_ai_activity({
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "action": "GENERATE",
+        "user_query": request.query,
+        "ai_explanation": result["explanation"],
+        "generated_code": result["code"]
+    })
         
     return AIResponse(
         explanation=result["explanation"],
