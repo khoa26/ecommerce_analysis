@@ -7,6 +7,7 @@ Hàm: route_intent(query), render_assistant_event(ev, mart_filtered).
 """
 from __future__ import annotations
 
+import json
 import streamlit as st
 import pandas as pd
 import plotly.io as pio
@@ -15,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, Optional
 
 from config import *
+
 
 # URL của Backend FastAPI (Mặc định chạy ở cổng 8000)
 API_URL = "http://localhost:8000"
@@ -149,3 +151,61 @@ def chatbot_area(mart_filtered: pd.DataFrame) -> None:
                     st.error(f"Lỗi kết nối đến API AI: {str(e)}\n\nHãy đảm bảo bạn đã khởi động Backend FastAPI ở cổng 8000.")
                     # Ghi nhận lỗi và thoát luồng chờ
                     st.session_state.chat_events.append(ChatEvent(role="assistant", type="error", content=f"API Error: {str(e)}"))
+
+def load_chat_history() -> list[ChatEvent]:
+    """Gọi API Logs, xử lý dữ liệu và tái tạo lại 2 phiên chat gần nhất"""
+    try:
+        response = requests.get(f"{API_URL}/logs/history?limit=15", timeout=3)
+        if response.status_code == 200:
+            history_data = response.json().get("data", [])
+            new_events = []
+            
+            # Duyệt từ cũ đến mới
+            for entry in reversed(history_data):
+                # 1. Tái tạo câu hỏi và đoạn code của AI
+                if entry.get("action") == "CHAT_SESSION":
+                    user_q, ai_exp, ai_code = "", "", ""
+                    for ev in entry.get("events", []):
+                        if ev.get("role") == "user":
+                            user_q = ev.get("content")
+                        elif ev.get("type") == "text":
+                            ai_exp = ev.get("content")
+                        elif ev.get("type") == "code":
+                            ai_code = ev.get("content")
+                            
+                    # Thêm câu hỏi User
+                    if user_q:
+                        new_events.append(ChatEvent(role="user", type="text", content=user_q))
+                    # Thêm Code AI (đánh dấu is_executed=True để web hiện dạng đã chốt)
+                    if ai_exp or ai_code:
+                        new_events.append(ChatEvent(
+                            role="assistant", 
+                            type="pending_code", 
+                            content=ai_exp, 
+                            code=ai_code,
+                            is_executed=True 
+                        ))
+                        
+                # 2. Tái tạo Kết quả biểu đồ/bảng dữ liệu
+                elif entry.get("action") == "EXECUTE" and entry.get("status") == "success":
+                    ev_type = entry.get("type", "result_df")
+                    data_to_pass = entry.get("analysis_output")
+                    
+                    # QUAN TRỌNG: Xử lý bẫy lỗi Plotly (Ép kiểu dict về string)
+                    if ev_type == "result_plotly" and isinstance(data_to_pass, dict):
+                        data_to_pass = json.dumps(data_to_pass)
+
+                    new_events.append(ChatEvent(
+                        role=entry.get("role", "assistant"),
+                        type=ev_type,
+                        content=entry.get("content", "📊 Kết quả lịch sử:"),
+                        data=data_to_pass,
+                        is_executed=True
+                    ))
+            
+            # Trả về 8 sự kiện cuối cùng (tương đương 2 lần hỏi đáp + biểu đồ)
+            return new_events[-8:]
+    except Exception as e:
+        print(f"Lỗi load lịch sử: {e}")
+        return []
+    return []
