@@ -228,7 +228,7 @@ def render_category_tab(mart_filtered: pd.DataFrame):
     # =============================
     section(
         "1. Top ngành hàng theo doanh thu ước tính",
-        "Dùng biểu đồ ngang để dễ đọc tên ngành hàng và thấy rõ thứ hạng đóng góp doanh thu.",
+        "Mục tiêu: xác định các ngành hàng đóng góp nhiều doanh thu nhất.",
     )
 
     top_rev = (
@@ -509,7 +509,7 @@ def render_category_tab(mart_filtered: pd.DataFrame):
     # =============================
     section(
         "5. Heatmap: mức giá × nhóm Review rating",
-        "Các ô có số trực tiếp, không cần rê chuột chính xác mới hiểu được biểu đồ.",
+        "Mục tiêu: hiểu rõ hơn về sự phân bố sản phẩm theo mức giá và chất lượng review, từ đó xác định các phân khúc thị trường tiềm năng hoặc đang bão hòa.",
     )
 
     heat_df = df[

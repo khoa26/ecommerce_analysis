@@ -668,7 +668,6 @@ def render_seller_tab(mart_filtered: pd.DataFrame):
     # =============================
     section(
         "Bảng chi tiết người bán",
-        "Dùng bảng này để kiểm chứng số liệu biểu đồ và lấy số đưa vào báo cáo.",
     )
 
     table = seller.sort_values("estimated_revenue", ascending=False).copy()
