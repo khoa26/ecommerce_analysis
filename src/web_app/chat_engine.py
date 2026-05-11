@@ -9,10 +9,12 @@ from dataclasses import dataclass
 from typing import Any, Literal, Optional
 
 from config import *
+import os
 
+from dotenv import load_dotenv
+load_dotenv()
 
-# URL của Backend FastAPI (Mặc định chạy ở cổng 8000)
-API_URL = "http://localhost:8000"
+API_URL = os.getenv("API_URL")
 
 @dataclass
 class ChatEvent:
