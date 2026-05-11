@@ -5,6 +5,7 @@ Hàm: vnd(x), pct(x), fmt_int(x), render_kpi(label, value, sub).
 """
 from __future__ import annotations
 from pathlib import Path
+from textwrap import dedent
 import streamlit as st
 
 APP_TITLE = "Hệ thống trực quan hóa dữ liệu TMĐT Tiki"
@@ -44,13 +45,11 @@ def fmt_int(x: float | int | None) -> str:
 
 def render_kpi(label: str, value: str, sub: str | None = None) -> None:
     sub_html = f"<div class='kpi-sub'>{sub}</div>" if sub else ""
-    st.markdown(
-        f"""
-        <div class="kpi-card">
+    html = f"""
+    <div class="kpi-card">
         <div class="kpi-label">{label}</div>
         <div class="kpi-value">{value}</div>
         {sub_html}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    </div>
+    """
+    st.markdown(dedent(html), unsafe_allow_html=True)

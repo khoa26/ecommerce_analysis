@@ -302,6 +302,47 @@ def _build_mart_cached(data_sig: tuple[tuple[str, int, int], ...]) -> pd.DataFra
     # FIX REVIEW SCORE BUG 🔥
     # =============================
     mart["review_score_real"] = mart["review_score_real"].clip(0, 5)
+    # =============================
+    # RATING ALIAS - TÁCH RÕ 3 LOẠI RATING
+    # =============================
+
+    # Rating gốc nằm trong bảng product
+    mart["product_rating"] = pd.to_numeric(
+        mart["review_score"],
+        errors="coerce"
+    ).clip(0, 5)
+
+    # Rating tính từ bảng review
+    mart["review_rating"] = pd.to_numeric(
+        mart["review_score_real"],
+        errors="coerce"
+    ).clip(0, 5)
+
+    # Rating của seller
+    if "seller_rating" in mart.columns:
+        mart["seller_rating_clean"] = pd.to_numeric(
+            mart["seller_rating"],
+            errors="coerce"
+        ).clip(0, 5)
+    else:
+        mart["seller_rating_clean"] = np.nan
+
+    # Doanh thu ước tính
+    mart["estimated_revenue"] = (
+        pd.to_numeric(mart["current_price"], errors="coerce").fillna(0)
+        * pd.to_numeric(mart["sold_quantity"], errors="coerce").fillna(0)
+    )
+
+    # Cờ discount để dashboard dùng
+    mart["has_discount"] = (
+        pd.to_numeric(mart["discount_percent"], errors="coerce").fillna(0) > 0
+    )
+
+    # Đảm bảo has_coupon tồn tại
+    if "has_coupon" not in mart.columns:
+        mart["has_coupon"] = (
+            pd.to_numeric(mart["coupon_discount_amount"], errors="coerce").fillna(0) > 0
+        )
 
     return mart
 
