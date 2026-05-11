@@ -18,7 +18,7 @@ web_app_dir = str(Path(__file__).resolve().parents[1] / "web_app")
 if web_app_dir not in sys.path:
     sys.path.insert(0, web_app_dir)
 
-from src.web_app.data_engine import build_product_mart
+from src.web_app.data_engine import build_mart
 
 router = APIRouter(prefix="/execute", tags=["Local Execution"])
 
@@ -48,7 +48,7 @@ async def run_code(request: ExecuteRequest, background_tasks: BackgroundTasks):
     stdout_capture = io.StringIO()
     
     try:
-        df = build_product_mart()
+        df = build_mart()
         local_namespace = {}
         
         with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stdout_capture):
