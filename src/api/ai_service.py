@@ -36,13 +36,14 @@ async def generate_code(request: AIRequest, background_tasks: BackgroundTasks):
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
         
-    # Tạo payload dữ liệu log
     log_entry = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "action": "GENERATE",
-        "user_query": request.query,
-        "ai_explanation": result["explanation"],
-        "generated_code": result["code"]
+        "action": "CHAT_SESSION",
+        "events": [
+            {"role": "user", "type": "text", "content": request.query},
+            {"role": "assistant", "type": "text", "content": result["explanation"]},
+            {"role": "assistant", "type": "code", "content": result["code"]}
+        ]
     }
     
     # Sử dụng BackgroundTasks để gọi API log ngầm, không làm người dùng phải chờ

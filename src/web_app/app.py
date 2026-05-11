@@ -221,6 +221,11 @@ def main() -> None:
                 content="Chào bạn! Bạn muốn phân tích gì từ dữ liệu Tiki? Mình có thể hỗ trợ sinh mã Python và vẽ biểu đồ trực tiếp nhé."
             )
         ]
+        
+        # Gọi hàm nạp lịch sử và gắn vào giao diện
+        history_events = load_chat_history()
+        if history_events:
+            st.session_state.chat_events.extend(history_events)
 
     dashboard_area(mart_filtered, price_offer)
 

@@ -18,7 +18,8 @@ web_app_dir = str(Path(__file__).resolve().parents[1] / "web_app")
 if web_app_dir not in sys.path:
     sys.path.insert(0, web_app_dir)
 
-from src.web_app.data_engine import build_mart
+# Đảm bảo bạn đang import đúng hàm build data mart của mình nhé
+from src.web_app.data_engine import build_mart 
 
 router = APIRouter(prefix="/execute", tags=["Local Execution"])
 
@@ -64,12 +65,14 @@ async def run_code(request: ExecuteRequest, background_tasks: BackgroundTasks):
         if result['type'] == 'dataframe':
             data_sample = result['data'].head(10).to_dict(orient='records')
             log_entry.update({
+                "role": "assistant",
+                "type": "result_df",
+                "content": "📊 Kết quả dữ liệu:",
                 "status": "success",
                 "result_type": "dataframe",
                 "analysis_output": data_sample,
                 "execution_logs": captured_logs
             })
-            # Đẩy việc gọi API ghi log vào chạy ngầm
             background_tasks.add_task(call_log_api, log_entry)
             
             return {
@@ -82,12 +85,14 @@ async def run_code(request: ExecuteRequest, background_tasks: BackgroundTasks):
         elif result['type'] == 'plotly_json':
             fig_json = pio.to_json(result['data'])
             log_entry.update({
+                "role": "assistant",
+                "type": "result_plotly",
+                "content": "📈 Biểu đồ phân tích:",
                 "status": "success",
                 "result_type": "plotly_json",
                 "analysis_output": json.loads(fig_json),
                 "execution_logs": captured_logs
             })
-            # Đẩy việc gọi API ghi log vào chạy ngầm
             background_tasks.add_task(call_log_api, log_entry)
             
             return {
