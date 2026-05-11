@@ -156,8 +156,8 @@ def render_review_tab(mart_filtered: pd.DataFrame) -> None:
     w_col1, w_col2 = st.columns(2)
 
     with w_col1:
-        st.markdown("**Top Sản phẩm Điểm thấp nhất (Review Count > 50)**")
-        worst_products = df_valid[df_valid['review_count'] > 50].sort_values('review_score', ascending=True)
+        st.markdown("**Top Sản phẩm Điểm thấp nhất (Review Count > 10)**")
+        worst_products = df_valid[df_valid['review_count'] > 10].sort_values('review_score', ascending=True)
         if not worst_products.empty:
             st.dataframe(
                 worst_products[['product_name', 'review_score', 'review_count']].head(10),
@@ -165,22 +165,27 @@ def render_review_tab(mart_filtered: pd.DataFrame) -> None:
                 hide_index=True
             )
         else:
-            st.info("Không có sản phẩm nào điểm thấp với lượt review > 50.")
+            st.info("Không có sản phẩm nào điểm thấp với lượt review > 10.")
 
     with w_col2:
         st.markdown("**Top 15 Sản phẩm có Chỉ số Bất mãn (Dissatisfaction) cao nhất**")
         top_dissatisfied = df_valid.nlargest(15, 'dissatisfaction_score').sort_values('dissatisfaction_score', ascending=True)
         
+        def truncate_text(text, max_len=30):
+            return text if len(text) <= max_len else text[:max_len] + "..."
+
+        top_dissatisfied["product_name_short"] = top_dissatisfied["product_name"].apply(truncate_text)
+
         if not top_dissatisfied.empty:
             fig_dis = px.bar(
                 top_dissatisfied, 
                 x='dissatisfaction_score', 
-                y='product_name',
+                y='product_name_short',
                 orientation='h',
                 title="Top sản phẩm có chỉ số bất mãn cao nhất",
                 labels={
                     "dissatisfaction_score": "Chỉ số bất mãn",
-                    "product_name": "Tên sản phẩm"
+                    "product_name_short": "Tên sản phẩm"
                 },
                 color='dissatisfaction_score',
                 color_continuous_scale='Reds'
