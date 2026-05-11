@@ -12,12 +12,6 @@ load_dotenv(dotenv_path=env_path)
 
 API_KEY = os.getenv("GEMINI_API_KEY")
 
-# In ra để kiểm tra (chỉ in 4 ký tự đầu để bảo mật)
-if API_KEY:
-    print(f"--- [DEBUG] Đã nạp API Key: {API_KEY[:4]}... ---")
-else:
-    print("--- [DEBUG] KHÔNG tìm thấy API Key trong file .env! ---")
-
 if not API_KEY:
     raise ValueError("Vui lòng cung cấp GEMINI_API_KEY trong file .env")
 

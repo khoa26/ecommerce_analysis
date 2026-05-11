@@ -62,7 +62,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-def dashboard_area(mart_filtered) -> None:
+def dashboard_area(mart_filtered, price_offer) -> None:
     overview = compute_overview(mart_filtered)
 
     k1, k2, k3, k4, k5 = st.columns(5)
@@ -86,7 +86,7 @@ def dashboard_area(mart_filtered) -> None:
         render_category_tab(mart_filtered)
 
     with tabs[2]:
-        render_price_discount_tab(mart_filtered)
+        render_price_discount_tab(mart_filtered, price_offer)
 
     with tabs[3]:
         render_seller_tab(mart_filtered)
@@ -113,6 +113,7 @@ def main() -> None:
     try:
         data_sig = get_processed_signature()
         mart = build_mart(data_sig)
+        price_offer = load_tables(data_sig)["price_offer"].copy()
     except Exception as e:
         st.error(f"Can not load data from {PROCESSED_DIR}.")
         st.code(str(e))
@@ -221,7 +222,7 @@ def main() -> None:
             )
         ]
 
-    dashboard_area(mart_filtered)
+    dashboard_area(mart_filtered, price_offer)
 
     st.markdown(
         f"<div class='muted'>Cập nhật lúc: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</div>",
