@@ -182,55 +182,106 @@ def render_overview_tab(mart_filtered: pd.DataFrame):
     # =============================
     cat = build_category_summary(df)
 
-    # =============================
-    # CHART 1: TOP CATEGORY THEO DOANH THU
+   
+        # =============================
+    # CHART 1: TỔNG QUAN HIỆU SUẤT BÁN HÀNG
     # =============================
     section(
-        "1. Cơ cấu doanh thu theo ngành hàng",
-        "Mục tiêu: nhìn nhanh ngành hàng nào đang đóng góp nhiều nhất cho toàn hệ thống.",
+        "1. Tổng quan hiệu suất bán hàng của sản phẩm",
+        "Mục tiêu: xem toàn hệ thống đang tập trung nhiều ở nhóm sản phẩm bán tốt, bán trung bình hay bán thấp/chưa bán.",
     )
 
-    top_cat = cat.sort_values("estimated_revenue", ascending=False).head(8)
+    sales_df = df.copy()
 
-    if top_cat.empty:
-        st.info("Không đủ dữ liệu ngành hàng để vẽ biểu đồ.")
+    if sales_df.empty:
+        st.info("Không đủ dữ liệu để vẽ biểu đồ hiệu suất bán hàng.")
     else:
+        sold_positive = sales_df[sales_df["sold_quantity"] > 0]["sold_quantity"]
+
+        if sold_positive.empty:
+            sales_df["sales_group"] = "Chưa bán"
+        else:
+            q1 = sold_positive.quantile(0.33)
+            q2 = sold_positive.quantile(0.66)
+
+            def sales_group(x):
+                if x <= 0:
+                    return "Chưa bán"
+                elif x <= q1:
+                    return "Bán thấp"
+                elif x <= q2:
+                    return "Bán trung bình"
+                else:
+                    return "Bán tốt"
+
+            sales_df["sales_group"] = sales_df["sold_quantity"].apply(sales_group)
+
+        sales_summary = (
+            sales_df.groupby("sales_group")
+            .agg(
+                product_count=("product_id", "nunique"),
+                revenue=("estimated_revenue", "sum"),
+                sold=("sold_quantity", "sum"),
+            )
+            .reset_index()
+        )
+
+        group_order = ["Chưa bán", "Bán thấp", "Bán trung bình", "Bán tốt"]
+
+        sales_summary["sales_group"] = pd.Categorical(
+            sales_summary["sales_group"],
+            categories=group_order,
+            ordered=True,
+        )
+
+        sales_summary = sales_summary.sort_values("sales_group")
+
+        total_products = sales_summary["product_count"].sum()
+
+        sales_summary["product_pct"] = np.where(
+            total_products > 0,
+            sales_summary["product_count"] / total_products * 100,
+            0,
+        )
+
         fig = go.Figure()
 
-        fig.add_bar(
-            x=top_cat["category_label"],
-            y=top_cat["estimated_revenue"],
-            marker_color=BLUE,
-            text=top_cat["estimated_revenue"].map(money_short),
-            textposition="outside",
+        fig.add_pie(
+            labels=sales_summary["sales_group"].astype(str),
+            values=sales_summary["product_count"],
+            hole=0.55,
+            textinfo="label+percent",
             customdata=np.stack(
                 [
-                    top_cat["sold_quantity"],
-                    top_cat["product_count"],
-                    top_cat["review_rating"].round(2),
+                    sales_summary["revenue"].map(money_short),
+                    sales_summary["sold"],
+                    sales_summary["product_pct"].round(1),
                 ],
                 axis=-1,
             ),
             hovertemplate=(
-                "<b>%{x}</b><br>"
-                "Doanh thu: %{y:,.0f} đ"
-                "<br>Lượt bán: %{customdata[0]:,.0f}"
-                "<br>Số sản phẩm: %{customdata[1]:,.0f}"
-                "<br>Review rating: %{customdata[2]:.2f}/5"
+                "<b>%{label}</b><br>"
+                "Số sản phẩm: %{value:,.0f}"
+                "<br>Tỷ trọng sản phẩm: %{customdata[2]:.1f}%"
+                "<br>Lượt bán: %{customdata[1]:,.0f}"
+                "<br>Doanh thu: %{customdata[0]}"
                 "<extra></extra>"
             ),
         )
 
         fig.update_layout(
-            title="Top ngành hàng theo doanh thu ước tính",
-            showlegend=False,
+            title="Cơ cấu sản phẩm theo hiệu suất bán hàng",
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=-0.18,
+                xanchor="center",
+                x=0.5,
+            ),
         )
-        fig.update_xaxes(title="Ngành hàng", tickangle=-25)
-        fig.update_yaxes(title="Doanh thu ước tính", tickformat="~s")
 
         plot_chart(fig, height=460)
-
-
 
     # =============================
     # CHART 2: PHÂN BỐ REVIEW RATING
