@@ -1,20 +1,22 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 import pandas as pd
 import plotly.io as pio
 import sys
-import traceback
+import json
+import requests
+from datetime import datetime
 from pathlib import Path
+import io
+import contextlib
 
-# Thêm thư mục gốc vào hệ thống path
 root_dir = str(Path(__file__).resolve().parents[2])
 if root_dir not in sys.path:
-    sys.path.append(root_dir)
+    sys.path.insert(0, root_dir)
 
-# BỔ SUNG: Thêm thư mục web_app vào hệ thống path
 web_app_dir = str(Path(__file__).resolve().parents[1] / "web_app")
 if web_app_dir not in sys.path:
-    sys.path.append(web_app_dir)
+    sys.path.insert(0, web_app_dir)
 
 from src.web_app.data_engine import build_product_mart
 
@@ -23,46 +25,84 @@ router = APIRouter(prefix="/execute", tags=["Local Execution"])
 class ExecuteRequest(BaseModel):
     code: str
 
-@router.post("/")
-async def run_code(request: ExecuteRequest):
-    """
-    Thực thi mã Python do AI tạo ra (hoặc đã qua chỉnh sửa của con người) 
-    trực tiếp trên DataFrame local.
-    """
+def call_log_api(entry: dict):
+    """Hàm thực hiện HTTP POST gọi sang API Logs"""
     try:
-        # 1. Load dữ liệu
-        df = build_product_mart()
-        if df.empty:
-            raise ValueError("Data mart đang rỗng, không thể phân tích.")
+        requests.post("http://127.0.0.1:8000/logs/save", json=entry, timeout=3)
+    except Exception as e:
+        print(f"[Warning] Không thể gọi API Logs: {e}")
 
-        # 2. Chuẩn bị không gian thực thi (Sandboxing cơ bản)
+@router.post("")
+async def run_code(request: ExecuteRequest, background_tasks: BackgroundTasks):
+    log_entry = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "action": "EXECUTE",
+        "executed_code": request.code,
+        "status": "pending",
+        "result_type": None,
+        "analysis_output": None,
+        "execution_logs": None,
+        "error_detail": None
+    }
+    
+    stdout_capture = io.StringIO()
+    
+    try:
+        df = build_product_mart()
         local_namespace = {}
         
-        # 3. Compile và chạy code để định nghĩa hàm analyze(df)
-        exec(request.code, globals(), local_namespace)
-        
-        if 'analyze' not in local_namespace:
-            raise ValueError("Đoạn mã không chứa hàm 'analyze(df)' theo chuẩn.")
+        with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stdout_capture):
+            exec(request.code, globals(), local_namespace)
             
-        analyze_func = local_namespace['analyze']
+            if 'analyze' not in local_namespace:
+                raise ValueError("Không tìm thấy hàm analyze(df)")
+                
+            result = local_namespace['analyze'](df)
+            
+        captured_logs = stdout_capture.getvalue()
         
-        # 4. Thực thi hàm với dữ liệu
-        result = analyze_func(df)
-        
-        # 5. Xử lý kết quả trả về Frontend
         if result['type'] == 'dataframe':
-            # Chuyển DataFrame thành list of dicts (JSON)
-            data_json = result['data'].head(100).to_dict(orient='records')
-            return {"status": "success", "type": "dataframe", "data": data_json}
+            data_sample = result['data'].head(10).to_dict(orient='records')
+            log_entry.update({
+                "status": "success",
+                "result_type": "dataframe",
+                "analysis_output": data_sample,
+                "execution_logs": captured_logs
+            })
+            # Đẩy việc gọi API ghi log vào chạy ngầm
+            background_tasks.add_task(call_log_api, log_entry)
+            
+            return {
+                "status": "success", 
+                "type": "dataframe", 
+                "data": result['data'].head(100).to_dict(orient='records'),
+                "logs": captured_logs
+            }
             
         elif result['type'] == 'plotly_json':
-            # Convert Plotly Figure thành JSON để Streamlit vẽ lại
             fig_json = pio.to_json(result['data'])
-            return {"status": "success", "type": "plotly_json", "data": fig_json}
+            log_entry.update({
+                "status": "success",
+                "result_type": "plotly_json",
+                "analysis_output": json.loads(fig_json),
+                "execution_logs": captured_logs
+            })
+            # Đẩy việc gọi API ghi log vào chạy ngầm
+            background_tasks.add_task(call_log_api, log_entry)
             
-        else:
-            raise ValueError(f"Loại trả về không hợp lệ: {result.get('type')}")
+            return {
+                "status": "success", 
+                "type": "plotly_json", 
+                "data": fig_json,
+                "logs": captured_logs
+            }
 
     except Exception as e:
-        error_trace = traceback.format_exc()
-        raise HTTPException(status_code=400, detail=f"Lỗi thực thi code:\n{str(e)}\n\nChi tiết:\n{error_trace}")
+        captured_logs = stdout_capture.getvalue()
+        log_entry.update({
+            "status": "failed",
+            "execution_logs": captured_logs,
+            "error_detail": str(e)
+        })
+        background_tasks.add_task(call_log_api, log_entry)
+        raise HTTPException(status_code=400, detail=f"Lỗi: {str(e)}\nLogs: {captured_logs}")
