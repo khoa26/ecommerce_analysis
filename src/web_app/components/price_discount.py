@@ -8,7 +8,6 @@ import plotly.graph_objects as go
 
 
 def render_price_discount_tab(mart_filtered: pd.DataFrame, price_offer: pd.DataFrame):
-    st.markdown("### 💰 Giá & ưu đãi")
 
     required_cols = [
         "product_id", "category_name", "seller_name",
@@ -78,7 +77,7 @@ def render_price_discount_tab(mart_filtered: pd.DataFrame, price_offer: pd.DataF
             df_scatter,
             x="discount_percent",
             y="current_price",
-            trendline="ols",
+            trendline="lowess",
             opacity=0.3,
             title="Quan hệ giữa giá và giảm giá",
             labels={
@@ -207,9 +206,9 @@ def render_price_discount_tab(mart_filtered: pd.DataFrame, price_offer: pd.DataF
                 top_products_df = top_products_df[top_products_df['level'] == 1]
                 
             if "sold_quantity" in top_products_df.columns:
-                top_product_ids = top_products_df.nlargest(300, 'sold_quantity')['product_id'].unique()
+                top_product_ids = top_products_df.nlargest(500, 'sold_quantity')['product_id'].unique()
             else:
-                top_product_ids = top_products_df['product_id'].unique()[:300]
+                top_product_ids = top_products_df['product_id'].unique()[:500]
                 
             # Tạo bảng mapping để lấy coupon từ mart_filtered áp dụng cho lịch sử giá
             coupon_map = df[['product_id', 'coupon_discount_amount']].drop_duplicates('product_id')
@@ -243,9 +242,9 @@ def render_price_discount_tab(mart_filtered: pd.DataFrame, price_offer: pd.DataF
 
             # Time Aggregation
             daily_agg = df_trend.groupby('date').agg(
-                median_current_price=('current_price', 'median'),
-                median_final_price=('final_price', 'median'),
-                median_discount=('discount_percent', 'median')
+                median_current_price=('current_price', 'mean'),
+                median_final_price=('final_price', 'mean'),
+                median_discount=('discount_percent', 'mean')
             ).reset_index().sort_values('date')
 
             if len(daily_agg) < 2:

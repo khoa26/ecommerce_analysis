@@ -16,7 +16,7 @@ The pipeline spans **multi-threaded crawling**, a **normalized PostgreSQL schema
 
 ### End-to-end pipeline
 
-![Data pipeline: Tiki crawl → PostgreSQL → Polars ETL → ML → Power BI](documentations/Screenshot_6.png)
+![Data pipeline: Tiki crawl → PostgreSQL → Polars ETL → ML → Power BI](assets/Screenshot_6.png)
 
 ---
 
@@ -43,9 +43,9 @@ The pipeline spans **multi-threaded crawling**, a **normalized PostgreSQL schema
 
 ### Database schema (ERD)
 
-Normalized relational model for products, time-stamped offers, services/coupons, and reviews. Full detail: [`database/schema.sql`](database/schema.sql) and [`documentations/main.pdf`](documentations/main.pdf).
+Normalized relational model for products, time-stamped offers, services/coupons, and reviews. Full detail: [`database/schema.sql`](database/schema.sql) and [`documentations/report.pdf`](documentations/report.pdf).
 
-![Entity-relationship diagram — PostgreSQL schema for Tiki crawl data](documentations/ERD.png)
+![Entity-relationship diagram — PostgreSQL schema for Tiki crawl data](assets/ERD.png)
 
 ---
 
@@ -125,35 +125,35 @@ Insights below summarize the **analytic narrative** documented in the project re
 - **Primary BI layer:** **Power BI** — *Tiki Analytics — E-commerce Performance Dashboard* with navigation for **market trends**, **category price segments**, **product positioning**, **store analysis**, and **satisfaction / ML insights**.
 - **Exploratory plots:** Python notebooks for **distributions**, **time series**, and **model diagnostics**.
 
-### Screenshots *(from [`documentations/`](documentations/))*
+### Screenshots *(from [`assets/`](assets/))*
 
 | Market & trends — KPIs, revenue decomposition (L1–L3), category performance, price-ratio trends |
 |:---:|
-| ![Market and trends dashboard](documentations/Screenshot_9.png) |
+| ![Market and trends dashboard](assets/Screenshot_9.png) |
 
 | Category price segments — median price vs. discount, category deep dives |
 |:---:|
-| ![Category price segmentation](documentations/Screenshot_7.png) |
+| ![Category price segmentation](assets/Screenshot_7.png) |
 
 | Product positioning — price vs. satisfaction quadrants, SKU mix, competitive structure |
 |:---:|
-| ![Product positioning matrix](documentations/Screenshot_3.png) |
+| ![Product positioning matrix](assets/Screenshot_3.png) |
 
 | Store overview — seller distribution, top sellers, performance mix |
 |:---:|
-| ![Store overview](documentations/Screenshot_8.png) |
+| ![Store overview](assets/Screenshot_8.png) |
 
 | Store performance — seller type (Tiki Trading / Official / regular), utilities vs. sales, revenue vs. supply mix |
 |:---:|
-| ![Store performance by seller type](documentations/Screenshot_5.png) |
+| ![Store performance by seller type](assets/Screenshot_5.png) |
 
 | Trade-off strategy — discount depth vs. attached utilities, risk vs. catalog scale |
 |:---:|
-| ![Discount vs utility trade-offs](documentations/Screenshot_2.png) |
+| ![Discount vs utility trade-offs](assets/Screenshot_2.png) |
 
 | Satisfaction analysis — Random Forest revenue drivers, 1–2★ complaint groups, review/revenue patterns |
 |:---:|
-| ![Satisfaction and ML insights](documentations/Screenshot_4.png) |
+| ![Satisfaction and ML insights](assets/Screenshot_4.png) |
 
 ---
 
@@ -196,11 +196,12 @@ pip install -r requirements.txt
 
 ```
 ecommerce-data-analysis/
+├── assets/
+│   └── Screenshot_*.png
 ├── database/
 │   └── schema.sql              # PostgreSQL DDL
 ├── documentations/             # Report PDFs, ERD, dashboard screenshots
 │   ├── ERD.png
-│   ├── Screenshot_*.png
 │   └── report.pdf
 ├── notebooks/
 │   ├── 01_data_collection.ipynb
