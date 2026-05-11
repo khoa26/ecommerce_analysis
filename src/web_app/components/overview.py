@@ -149,54 +149,30 @@ def render_overview_tab(mart_filtered: pd.DataFrame):
     k1, k2, k3, k4 = st.columns(4)
 
     with k1:
-        kpi(
-            "Sản phẩm",
-            fmt_int(df["product_id"].nunique()),
-            
-        )
-
-    with k2:
-        kpi(
+         kpi(
             "Doanh thu ước tính",
             money_short(total_revenue),
            
         )
 
-    with k3:
+    with k2:
         kpi(
             "Lượt bán",
             fmt_int(total_sold),
            
         )
 
-    with k4:
+    with k3:
         kpi(
             "Tỷ lệ có coupon",
             pct(coupon_rate * 100),
            
         )
-
-    r1, r2, r3 = st.columns(3)
-
-    with r1:
+    with k4:
         kpi(
-            "Product rating TB",
+            "Điểm đánh giá trung bình của sản phẩm",
             f"{avg_product_rating:.2f}/5" if pd.notna(avg_product_rating) else "—",
            
-        )
-
-    with r2:
-        kpi(
-            "Review rating TB",
-            f"{avg_review_rating:.2f}/5" if pd.notna(avg_review_rating) else "—",
-            
-        )
-
-    with r3:
-        kpi(
-            "Seller rating TB",
-            f"{avg_seller_rating:.2f}/5" if pd.notna(avg_seller_rating) else "—",
-            
         )
 
   
@@ -314,7 +290,7 @@ def render_overview_tab(mart_filtered: pd.DataFrame):
         )
 
         fig.update_layout(
-            title="Số sản phẩm theo nhóm Review rating",
+            title="Số sản phẩm theo nhóm điểm đánh giá",
             showlegend=False,
         )
         fig.update_xaxes(title="Nhóm Review rating")

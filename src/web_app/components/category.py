@@ -175,7 +175,7 @@ def render_category_tab(mart_filtered: pd.DataFrame):
         kpi(
             "Số ngành hàng",
             fmt_int(cat["category_name"].nunique()),
-            "Ngành hàng sau bộ lọc",
+
         )
 
     with k2:
@@ -199,28 +199,6 @@ def render_category_tab(mart_filtered: pd.DataFrame):
             fmt_int(best_sold_cat["sold_quantity"]) + " lượt bán",
         )
 
-    r1, r2, r3 = st.columns(3)
-
-    with r1:
-        kpi(
-            "Product rating TB",
-            f"{cat['product_rating'].dropna().mean():.2f}/5",
-            "review_score của product",
-        )
-
-    with r2:
-        kpi(
-            "Review rating TB",
-            f"{cat['review_rating'].dropna().mean():.2f}/5",
-            "rating_score từ review",
-        )
-
-    with r3:
-        kpi(
-            "Seller rating TB",
-            f"{cat['seller_rating'].dropna().mean():.2f}/5",
-            "seller_rating của người bán",
-        )
 
 
     # =============================
@@ -508,7 +486,7 @@ def render_category_tab(mart_filtered: pd.DataFrame):
     # CHART 5: HEATMAP
     # =============================
     section(
-        "5. Heatmap: mức giá × nhóm Review rating",
+        "5. Heatmap: mức giá × nhóm điểm đánh giá review",
         "Mục tiêu: hiểu rõ hơn về sự phân bố sản phẩm theo mức giá và chất lượng review, từ đó xác định các phân khúc thị trường tiềm năng hoặc đang bão hòa.",
     )
 
@@ -568,7 +546,7 @@ def render_category_tab(mart_filtered: pd.DataFrame):
         )
 
         fig.update_layout(
-            title="Số sản phẩm theo mức giá và nhóm Review rating",
+            title="Số sản phẩm theo mức giá và nhóm điểm đánh giá review",
             showlegend=False,
         )
         fig.update_xaxes(title="Mức giá")

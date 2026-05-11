@@ -189,53 +189,27 @@ def render_seller_tab(mart_filtered: pd.DataFrame):
         kpi(
             "Số người bán",
             fmt_int(seller["seller_name"].nunique()),
-            "Người bán sau bộ lọc",
         )
 
     with k2:
         kpi(
-            "Doanh thu ước tính",
-            money_short(seller["estimated_revenue"].sum()),
-            "Tổng doanh thu từ người bán",
+            "Điểm đánh giá trung bình của người bán",
+            f"{seller['seller_rating'].dropna().mean():.2f}/5",
         )
 
     with k3:
         kpi(
-            "Seller doanh thu cao nhất",
+            "Người bán có doanh thu cao nhất",
             best_revenue_seller["seller_label"],
             money_short(best_revenue_seller["estimated_revenue"]),
         )
 
     with k4:
         kpi(
-            "Seller bán nhiều nhất",
+            "Người bán nhiều nhất",
             best_sold_seller["seller_label"],
             fmt_int(best_sold_seller["sold_quantity"]) + " lượt bán",
         )
-
-    r1, r2, r3 = st.columns(3)
-
-    with r1:
-        kpi(
-            "Seller rating TB",
-            f"{seller['seller_rating'].dropna().mean():.2f}/5",
-            "Điểm seller_rating",
-        )
-
-    with r2:
-        kpi(
-            "Review rating TB",
-            f"{seller['review_rating'].dropna().mean():.2f}/5",
-            "Điểm rating_score từ review",
-        )
-
-    with r3:
-        kpi(
-            "Tỷ lệ bad review",
-            pct(seller["bad_review_rate"].mean() * 100),
-            "Review có điểm ≤ 2 sao",
-        )
-
 
         # =============================
     # CHART 1: PARETO SELLER REVENUE
@@ -314,11 +288,12 @@ def render_seller_tab(mart_filtered: pd.DataFrame):
         )
 
         fig.update_layout(
-            title="Pareto doanh thu theo người bán",
-            yaxis=dict(
-                title="Doanh thu ước tính",
-                tickformat="~s",
-            ),
+        title="Pareto doanh thu theo người bán ",
+        yaxis=dict(
+            title="Doanh thu ước tính",
+            tickformat="~s",
+            type="log",
+        ),
             yaxis2=dict(
                 title="Tỷ trọng lũy kế (%)",
                 overlaying="y",
@@ -356,6 +331,12 @@ def render_seller_tab(mart_filtered: pd.DataFrame):
 
     bubble_df = bubble_df.sort_values("estimated_revenue", ascending=False).head(35)
 
+    bubble_df["bubble_size"] = np.sqrt(
+    bubble_df["product_count"] / max(bubble_df["product_count"].max(), 1)
+    )
+
+    bubble_df["bubble_size"] = 14 + 38 * bubble_df["bubble_size"]
+
     if bubble_df.empty:
         st.info("Không đủ dữ liệu để vẽ ma trận người bán.")
     else:
@@ -377,7 +358,7 @@ def render_seller_tab(mart_filtered: pd.DataFrame):
             ),
             textposition="top center",
             marker=dict(
-                size=12 + 44 * np.sqrt(bubble_df["product_count"] / max_size),
+                size=bubble_df["bubble_size"],
                 color=bubble_df["review_rating"],
                 colorscale="Viridis",
                 showscale=True,
@@ -413,8 +394,8 @@ def render_seller_tab(mart_filtered: pd.DataFrame):
             title="Doanh thu vs lượt bán theo người bán",
             showlegend=False,
         )
-        fig.update_xaxes(title="Tổng lượt bán", tickformat="~s")
-        fig.update_yaxes(title="Doanh thu ước tính", tickformat="~s")
+        fig.update_xaxes(title="Tổng lượt bán", tickformat="~s", type="log")
+        fig.update_yaxes(title="Doanh thu ước tính", tickformat="~s", type="log")
 
         plot_chart(fig, height=540, hovermode="closest")
 
@@ -424,8 +405,8 @@ def render_seller_tab(mart_filtered: pd.DataFrame):
     # CHART 3: SELLER PRODUCT EFFICIENCY
     # =============================
     section(
-        "3. Hiệu suất doanh thu trên mỗi sản phẩm của seller",
-        "Mục tiêu: tìm seller có danh mục sản phẩm gọn nhưng tạo doanh thu tốt, thay vì chỉ nhìn tổng doanh thu.",
+        "3. Hiệu suất doanh thu trên mỗi sản phẩm của người bán",
+        "Mục tiêu: tìm người bán có danh mục sản phẩm gọn nhưng tạo doanh thu tốt, thay vì chỉ nhìn tổng doanh thu.",
     )
 
     eff_df = (
@@ -494,7 +475,7 @@ def render_seller_tab(mart_filtered: pd.DataFrame):
             )
 
         fig.update_layout(
-            title="Top seller theo doanh thu trung bình trên mỗi sản phẩm",
+            title="Top người bán theo doanh thu trung bình trên mỗi sản phẩm",
             showlegend=False,
         )
 
@@ -510,7 +491,7 @@ def render_seller_tab(mart_filtered: pd.DataFrame):
     # =============================
     section(
         "4. Quy mô doanh thu và độ phủ danh mục của người bán",
-        "Mục tiêu: xác định seller nào vừa tạo doanh thu lớn vừa kinh doanh trên nhiều ngành hàng.",
+        "Mục tiêu: xác định người bán nào vừa tạo doanh thu lớn vừa kinh doanh trên nhiều ngành hàng.",
     )
 
     tree_df = (
@@ -519,6 +500,7 @@ def render_seller_tab(mart_filtered: pd.DataFrame):
         .head(18)
         .copy()
     )
+    tree_df["scaled_revenue"] = np.sqrt(tree_df["estimated_revenue"])
 
     if tree_df.empty:
         st.info("Không đủ dữ liệu để vẽ treemap seller.")
@@ -535,7 +517,7 @@ def render_seller_tab(mart_filtered: pd.DataFrame):
             go.Treemap(
                 labels=tree_df["seller_label"],
                 parents=[""] * len(tree_df),
-                values=tree_df["estimated_revenue"],
+                values=tree_df["scaled_revenue"],
                 marker=dict(
                     colors=tree_df["category_count"],
                     colorscale="Blues",
@@ -568,7 +550,7 @@ def render_seller_tab(mart_filtered: pd.DataFrame):
         )
 
         fig.update_layout(
-            title="Treemap doanh thu seller, tô màu theo số ngành kinh doanh",
+            title="Treemap doanh thu người bán, tô màu theo số ngành kinh doanh",
             margin=dict(l=20, r=20, t=70, b=20),
         )
 
@@ -579,8 +561,8 @@ def render_seller_tab(mart_filtered: pd.DataFrame):
     # CHART 5: SELLER RISK HEATMAP
     # =============================
     section(
-        "5. Ma trận rủi ro seller theo rating và bad review",
-        "Mục tiêu: xem doanh thu đang tập trung ở nhóm seller chất lượng tốt hay nhóm có rủi ro review xấu.",
+        "5. Ma trận rủi ro người bán theo rating và bad review",
+        "Mục tiêu: xem doanh thu đang tập trung ở nhóm người bán chất lượng tốt hay nhóm có rủi ro review xấu.",
     )
 
     risk_df = seller[
@@ -652,7 +634,7 @@ def render_seller_tab(mart_filtered: pd.DataFrame):
         )
 
         fig.update_layout(
-            title="Doanh thu theo nhóm Seller rating và tỷ lệ bad review",
+            title="Doanh thu theo nhóm điểm đánh giá của người bán và tỷ lệ review xấu", 
             showlegend=False,
         )
 

@@ -97,22 +97,35 @@ def plot_chart(fig: go.Figure, height=440, hovermode="closest", legend_top=False
     )
 
 
-def section(title, desc=""):
-    html = f"""
-<div style="
-    margin-top:18px;
-    margin-bottom:12px;
-    padding:14px 16px;
-    border-radius:16px;
-    background:linear-gradient(90deg,rgba(26,148,255,0.16),rgba(255,255,255,0.035));
-    border:1px solid rgba(255,255,255,0.08);
-">
-    <div style="font-size:1.05rem;font-weight:800;color:white;">
-        {title}
-    </div>
-    <div style="font-size:0.86rem;color:rgba(255,255,255,0.62);margin-top:4px;">
-        {desc}
-    </div>
-</div>
-"""
-    st.markdown(dedent(html), unsafe_allow_html=True)
+def section(title: str, desc: str = ""):
+    desc_html = ""
+
+    if desc:
+        desc_html = (
+            '<div style="'
+            'font-size:0.86rem;'
+            'color:rgba(255,255,255,0.62);'
+            'margin-top:4px;'
+            'line-height:1.5;'
+            '">'
+            f'{desc}'
+            '</div>'
+        )
+
+    html = (
+        '<div style="'
+        'margin-top:18px;'
+        'margin-bottom:12px;'
+        'padding:14px 16px;'
+        'border-radius:16px;'
+        'background:linear-gradient(90deg,rgba(26,148,255,0.16),rgba(255,255,255,0.035));'
+        'border:1px solid rgba(255,255,255,0.08);'
+        '">'
+        '<div style="font-size:1.05rem;font-weight:800;color:white;">'
+        f'{title}'
+        '</div>'
+        f'{desc_html}'
+        '</div>'
+    )
+
+    st.markdown(html, unsafe_allow_html=True)
