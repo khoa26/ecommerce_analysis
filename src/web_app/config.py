@@ -1,14 +1,9 @@
-"""
-Biến: APP_TITLE, COLOR_PRIMARY, COLOR_TEXT_MUTED, chuỗi CSS (st.markdown("<style>...</style>")), ROOT_DIR, PROCESSED_DIR.
-
-Hàm: vnd(x), pct(x), fmt_int(x), render_kpi(label, value, sub).
-"""
 from __future__ import annotations
 from pathlib import Path
 from textwrap import dedent
 import streamlit as st
 
-APP_TITLE = "Hệ thống trực quan hóa dữ liệu TMĐT Tiki"
+APP_TITLE = "Hệ thống trực quan hóa dữ liệu Thương mại điện tử (Tiki)"
 
 COLOR_PRIMARY = "#1A94FF"  # Tiki blue-ish
 COLOR_TEXT_MUTED = "rgba(255,255,255,.7)"

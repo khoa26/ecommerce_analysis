@@ -101,7 +101,7 @@ def dashboard_area(mart_filtered, price_offer) -> None:
 def main() -> None:
     st.markdown(f"## {APP_TITLE}")
     st.markdown(
-        "<span class='muted'>Dashboard tổng quan thị trường TMĐT (Tiki) + Chatbot tương tác",
+        "<span class='muted'>Dashboard tổng quan thị trường Thương mại điện tử (Tiki) + Chatbot tương tác",
         unsafe_allow_html=True,
     )
 

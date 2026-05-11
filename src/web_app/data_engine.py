@@ -1,11 +1,3 @@
-"""
-Imports cần thiết: import pandas as pd, import streamlit as st (để dùng @st.cache_data), from config import PROCESSED_DIR.
-
-Hàm cốt lõi: _read_parquet, load_tables, build_product_mart, apply_filters.
-
-Hàm phân tích: sample_pd, top_categories, top_sellers, compute_overview.
-"""
-
 from __future__ import annotations
 
 import pandas as pd

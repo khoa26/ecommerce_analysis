@@ -1,10 +1,3 @@
-"""
-Imports cần thiết: import streamlit as st, import plotly.express as px, import pandas as pd, from config import COLOR_PRIMARY, và import các hàm từ data_engine.py.
-
-Classes/Types: ChatIntent, ChatEvent.
-
-Hàm: route_intent(query), render_assistant_event(ev, mart_filtered).
-"""
 from __future__ import annotations
 
 import json
