@@ -1,8 +1,14 @@
-# 🛒 Tiki E-Commerce Analytics — Price Structure & Customer Satisfaction
+# 🛒 E-commerce Data Analysis (Tiki) — Dashboard & AI Assistant
+
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B?logo=streamlit&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&logoColor=white)
 
 End-to-end data project that **measures how pricing, promotions, and customer feedback interact on Vietnam’s Tiki marketplace**. The work connects a custom crawl → relational storage → high-performance ETL → analytics, ML, NLP, and executive dashboards so decisions are grounded in **observed seller and buyer behavior**, not assumptions.
 
----
+## 🔗 Demo
+
+- **Live dashboard (deploy)**: `https://ecommerce-data-analysis-production-b558.up.railway.app/`
 
 ## 📋 Overview
 
@@ -194,24 +200,24 @@ pip install -r requirements.txt
 
 ## 📁 Project Structure
 
-```
+```text
 ecommerce-data-analysis/
-├── assets/
-│   └── Screenshot_*.png
+├── assets/                      # ERD + screenshots
+├── dashboards/                  # Power BI dashboard (.pbix)
+├── data/
+│   └── processed/               # Parquet tables used by Streamlit
 ├── database/
-│   └── schema.sql              # PostgreSQL DDL
-├── documentations/             # Report PDFs, ERD, dashboard screenshots
-│   ├── ERD.png
-│   └── report.pdf
-├── notebooks/
-│   ├── 01_data_collection.ipynb
-│   ├── 02_data_preprocessing.ipynb
-│   └── 03_feature_engineering.ipynb
+│   └── schema.sql               # PostgreSQL DDL (optional in dashboard runtime)
+├── documentations/              # Project report(s)
+│   ├── report.pdf
+│   └── Lab 1 .pdf
+├── notebooks/                   # Data collection / preprocessing / feature engineering
 ├── src/
-│   └── crawl/                  # Tiki crawler (Selenium + BeautifulSoup)
-│       ├── _shared.py
-│       ├── category_crawler.py
-│       └── product_crawler.py
+│   ├── ai_module/               # LLM handler (Gemini) + prompts
+│   ├── api/                     # FastAPI backend (AI generate + execute + logs)
+│   ├── crawl/                   # Tiki crawler (Selenium + BeautifulSoup)
+│   └── web_app/                 # Streamlit dashboard
+├── Dockerfile
 ├── requirements.txt
 └── README.md
 ```
