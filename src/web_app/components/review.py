@@ -61,12 +61,13 @@ def render_review_tab(mart_filtered: pd.DataFrame) -> None:
     # =====================================================
     st.markdown("### 2. Phân bố đánh giá")
     d_col1, d_col2 = st.columns(2)
+    df_valid = df_valid[(df_valid['review_score'] >= 1) & (df_valid['review_score'] <= 5)]
 
     with d_col1:
         fig_dist1 = px.histogram(
             df_valid, 
             x='review_score', 
-            nbins=20,
+            nbins=5,
             title="Phân bố điểm đánh giá",
             labels={
                 "review_score": "Điểm đánh giá",
