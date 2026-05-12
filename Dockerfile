@@ -11,20 +11,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Install ONLY packages needed by `src/api/` + `src/ai_module/`
-# (do not rely on the project's full requirements.txt)
-RUN pip install --no-cache-dir \
-    fastapi \
-    uvicorn \
-    pydantic \
-    requests \
-    python-dotenv \
-    google-genai \
-    pandas \
-    numpy \
-    plotly \
-    pyarrow \
-    streamlit
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy only what the API needs at runtime
 COPY src ./src
