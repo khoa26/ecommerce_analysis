@@ -123,6 +123,50 @@ def _ensure_chat_state() -> None:
     st.session_state.setdefault("generate_inflight_started_at", 0.0)
     st.session_state.setdefault("execute_request", None)  # {"event_id": str, "code": str}
     st.session_state.setdefault("reject_request", None)  # event_id
+    st.session_state.setdefault("chat_events", [])
+
+    # Migrate legacy ChatEvent objects that may exist across hot-reload/redeploy.
+    events = st.session_state.get("chat_events") or []
+    changed = False
+    for idx, ev in enumerate(events):
+        # Some older sessions may have dicts or older dataclass instances without new fields.
+        if isinstance(ev, dict):
+            # Best-effort conversion
+            role = ev.get("role", "assistant")
+            ev_type = ev.get("type", "text")
+            content = ev.get("content", "")
+            code = ev.get("code")
+            data = ev.get("data")
+            is_executed = bool(ev.get("is_executed", False))
+            parent_id = ev.get("parent_id")
+            created_at = float(ev.get("created_at") or 0.0)
+            new_ev = ChatEvent(
+                id=ev.get("id") or _new_id("legacy"),
+                role=role,
+                type=ev_type,
+                content=content,
+                code=code,
+                data=data,
+                is_executed=is_executed,
+                parent_id=parent_id,
+                created_at=created_at,
+            )
+            events[idx] = new_ev
+            changed = True
+            continue
+
+        if not hasattr(ev, "id") or not getattr(ev, "id"):
+            setattr(ev, "id", _new_id("legacy"))
+            changed = True
+        if not hasattr(ev, "parent_id"):
+            setattr(ev, "parent_id", None)
+            changed = True
+        if not hasattr(ev, "created_at"):
+            setattr(ev, "created_at", 0.0)
+            changed = True
+
+    if changed:
+        st.session_state.chat_events = events
 
 
 def _coerce_df_payload(data: Any) -> Any:
