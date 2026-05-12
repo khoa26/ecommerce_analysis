@@ -216,6 +216,7 @@ def main() -> None:
     if "chat_events" not in st.session_state:
         st.session_state.chat_events = [
             ChatEvent(
+                id="welcome",
                 role="assistant",
                 type="text",
                 content="Chào bạn! Bạn muốn phân tích gì từ dữ liệu Tiki? Mình có thể hỗ trợ sinh mã Python và vẽ biểu đồ trực tiếp nhé."
