@@ -228,26 +228,44 @@ streamlit run src/web_app/app.py
 
 ```text
 ecommerce-data-analysis/
-├── assets/                      # ERD + screenshots
-├── dashboards/                  # Power BI dashboard (.pbix)
+├── .devcontainer/
+├── .venv/
+├── .vscode/
+├── assets/
 ├── data/
-│   ├── processed/               # Parquet tables used by Streamlit
-│   └── logs/                    # ai_activity.jsonl (AI Execution Logs)
 ├── database/
-│   └── schema.sql               # PostgreSQL DDL (optional in dashboard runtime)
-├── documentations/              # Project report(s)
-│   ├── report.pdf
-│   └── Lab 1 .pdf
-├── notebooks/                   # Data collection / preprocessing / feature engineering
+│   └── schema.sql
+├── notebooks/
+│   ├── 01_data_collection.ipynb
+│   ├── 02_data_preprocessing.ipynb
+│   └── 03_feature_engineering.ipynb
 ├── src/
-│   ├── ai_module/               # LLM handler (Gemini) + prompts
-│   ├── api/                     # FastAPI backend (ai_service.py, executor.py, logger.py)
-│   ├── crawl/                   # Tiki crawler (Selenium + BeautifulSoup)
-│   └── web_app/                 # Streamlit dashboard (app.py, chat_engine.py, data_engine.py)
-├── Dockerfile
-├── .env                         # Environment variables
-├── requirements.txt
-└── README.md
+│   ├── ai_module/
+│   │   ├── model_handler.py
+│   │   └── prompts.py
+│   ├── api/
+│   │   ├── ai_service.py
+│   │   ├── executor.py
+│   │   ├── logger.py
+│   │   ├── main.py
+│   │   └── sandbox.py
+│   ├── crawl/
+│   │   ├── __init__.py
+│   │   ├── _shared.py
+│   │   ├── category_crawler.py
+│   │   └── product_crawler.py
+│   ├── scripts/
+│   │   ├── _shared.py
+│   │   ├── import_csv_to_local.py
+│   │   ├── load_to_local.py
+│   │   └── load_to_supabase.py
+│   └── web_app/
+│       ├── components/
+│       ├── app.py
+│       ├── chat_engine.py
+│       ├── config.py
+│       └── data_engine.py
+└── venv/
 ```
 
 ---
